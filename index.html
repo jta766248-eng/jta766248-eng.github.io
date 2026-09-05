@@ -1,0 +1,3119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>ROBLOX SKY PARKOUR - Spiral Ascent</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+*{font-family:"Fredoka",sans-serif; user-select:none; -webkit-user-select:none;}
+.mono{font-family:"JetBrains Mono",monospace;}
+canvas{display:block;}
+.roblox-shadow{box-shadow:0 4px 0 rgba(0,0,0,0.25), inset 0 2px 0 rgba(255,255,255,0.35);}
+.roblox-btn:active{transform:translateY(2px); box-shadow:0 2px 0 rgba(0,0,0,0.25);}
+
+/* Force landscape play on phones: below the tablet breakpoint (md),
+   while the device is in portrait, hide the game and show a
+   rotate-device prompt instead. At/above md (tablets+) portrait is
+   left alone since there's enough room either way. */
+#rotateOverlay{display:none;}
+@media (max-width: 767px) and (orientation: portrait){
+  #container{display:none;}
+  #rotateOverlay{display:flex;}
+}
+
+/* MOBILE TOUCH CONTROLS — analog movement joystick (bottom-left) + jump
+   button (bottom-right). Hidden by default; revealed only on touch-primary
+   devices (phones/tablets) via the pointer:coarse media query, so mouse
+   users on desktop never see them layered over the game. */
+#joyBase, #jumpBtn{ display:none; }
+@media (pointer:coarse){
+  #joyBase{ display:flex; }
+  #jumpBtn{ display:flex; }
+}
+#joyBase{
+  position:absolute; left:24px; bottom:24px; z-index:25;
+  width:126px; height:126px; border-radius:999px;
+  background:rgba(255,255,255,0.16);
+  border:3px solid rgba(0,0,0,0.55);
+  align-items:center; justify-content:center;
+  touch-action:none;
+}
+#joyKnob{
+  width:54px; height:54px; border-radius:999px;
+  background:#ffde59; border:3px solid #111;
+  box-shadow:0 3px 0 rgba(0,0,0,0.25);
+  pointer-events:none;
+}
+#jumpBtn{
+  position:absolute; right:28px; bottom:32px; z-index:25;
+  width:86px; height:86px; border-radius:999px;
+  align-items:center; justify-content:center;
+  border:3px solid #111; font-weight:700; font-size:15px; color:#111;
+  touch-action:none; box-shadow:0 4px 0 rgba(0,0,0,0.25), inset 0 2px 0 rgba(255,255,255,0.35);
+}
+#jumpBtn:active{ transform:translateY(2px); box-shadow:0 2px 0 rgba(0,0,0,0.25); }
+
+
+
+</style>
+</head>
+<body class="bg-[#87CEEB] m-0 overflow-hidden overscroll-none touch-none">
+
+<!-- ROTATE-DEVICE PROMPT — covers the screen on phones held in portrait,
+     since the joystick/jump controls and camera framing are laid out for
+     landscape. Pure CSS toggles it (see #rotateOverlay media query
+     above); it disappears the instant the phone is turned sideways. -->
+<div id="rotateOverlay" class="fixed inset-0 z-[100] flex-col items-center justify-center gap-4 text-center p-6" style="background:linear-gradient(#87CEEB,#5fb8e8);">
+  <div class="animate-[spin_1.8s_ease-in-out_infinite]" style="animation-name:rotateHint;">
+    <svg viewBox="0 0 24 24" width="64" height="64"><rect x="2" y="7" width="14" height="10" rx="2" fill="#fff" stroke="#111" stroke-width="1.4"/><rect x="6.6" y="9" width="4.8" height="6" rx="0.6" fill="#80deea"/><path d="M19 5.5a5.5 5.5 0 010 9.6" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round"/><path d="M19 5.5l1.6-1M19 5.5l-1.9.6" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <div class="text-white font-black text-[20px] tracking-tight drop-shadow-[0_3px_0_rgba(0,0,0,0.35)]">قلّب جهازك بشكل أفقي</div>
+  <div class="mono text-white/80 text-[12px]">ROTATE YOUR DEVICE TO LANDSCAPE</div>
+</div>
+<style>
+@keyframes rotateHint{0%{transform:rotate(0deg)}50%{transform:rotate(-90deg)}100%{transform:rotate(-90deg)}}
+</style>
+
+<!-- OFFLINE OVERLAY — shown whenever the device has no network connection.
+     The game relies on CDN-hosted assets (three.js, fonts, Tailwind) and
+     cannot run offline, so this blocks play and explains why in English. -->
+<div id="offlineOverlay" class="fixed inset-0 z-[200] flex-col items-center justify-center gap-4 text-center p-6" style="display:none; background:linear-gradient(#2b2b2b,#111);">
+  <svg viewBox="0 0 24 24" width="56" height="56"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9z" fill="none" stroke="#ff5252" stroke-width="1.8"/><path d="M5 13l2 2a8.03 8.03 0 0110 0l2-2a11.03 11.03 0 00-14 0z" fill="none" stroke="#ff5252" stroke-width="1.8"/><path d="M9 17l2 2a5 5 0 012 0l2-2a5.99 5.99 0 00-6 0z" fill="none" stroke="#ff5252" stroke-width="1.8"/><line x1="2" y1="2" x2="22" y2="22" stroke="#ff5252" stroke-width="1.8"/></svg>
+  <div class="text-white font-black text-[22px] tracking-tight">NO INTERNET CONNECTION</div>
+  <div class="mono text-white/70 text-[13px] max-w-[320px]">This game requires an internet connection to run and does not work offline. Please reconnect and reload the page.</div>
+</div>
+<script>
+(function(){
+  var overlay = document.getElementById('offlineOverlay');
+  var container = document.getElementById('container');
+  function updateConnectivity(){
+    if(!navigator.onLine){
+      overlay.style.display = 'flex';
+      if(container) container.style.display = 'none';
+    } else {
+      overlay.style.display = 'none';
+      if(container) container.style.display = '';
+    }
+  }
+  window.addEventListener('online', updateConnectivity);
+  window.addEventListener('offline', updateConnectivity);
+  updateConnectivity();
+})();
+</script>
+
+<div id="container" class="relative w-screen h-screen">
+  <canvas id="c" class="w-full h-full"></canvas>
+
+  <!-- LOADING SCREEN — shown immediately (before the game module even loads) -->
+  <div id="loadingScreen" class="absolute inset-0 z-50 flex flex-col items-center justify-center" style="background:linear-gradient(#87CEEB,#5fb8e8);">
+    <div class="text-white font-black text-[26px] md:text-[34px] tracking-tight drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] mb-1 flex items-center justify-center gap-2"><svg viewBox="0 0 24 24" width="28" height="28"><circle cx="14.5" cy="4.5" r="2.3" fill="#ffde59" stroke="#111" stroke-width="1"/><path d="M13 8l-2.2 4.2 3.4 2-1 5.3" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 14l-3 2 1 4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.2 11.6l4 .8 2.3 3.1" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>SKY PARKOUR</div>
+    <div class="mono text-white/70 text-[11px] mb-7">Spiral Ascent</div>
+    <div class="w-[250px] h-[20px] bg-black/25 border-[3px] border-black rounded-full overflow-hidden roblox-shadow">
+      <div id="loadingBar" class="h-full rounded-full" style="width:0%; background:linear-gradient(90deg,#00e676,#69f0ae); transition:width 0.25s ease-out;"></div>
+    </div>
+    <div id="loadingPct" class="mono text-white text-[12px] mt-2">0%</div>
+  </div>
+
+  <!-- Top black overlay bar removed, but RESPAWN and SKINS buttons restored
+       as standalone floating buttons (no bar background) per user request -->
+  <div class="absolute top-3 left-3 z-20 flex items-center gap-2">
+    <button id="muteBtn" class="roblox-shadow roblox-btn px-3 py-[6px] bg-white border-[3px] border-black rounded-[10px] text-[12px] font-bold mono"></button>
+  </div>
+  <div class="absolute top-3 right-3 z-20 flex items-center gap-2">
+    <button id="skinsBtn" class="roblox-shadow roblox-btn px-3 py-[6px] bg-[#ffde59] border-[3px] border-black rounded-[10px] text-[12px] font-bold mono"><svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-2px"><path d="M12 3a9 8 0 100 16c1.15 0 2-.85 2-1.9 0-.5-.2-.9-.5-1.3-.35-.4-.1-1.05.45-1.1H16a4 4 0 004-4c0-4.4-3.6-7.7-8-7.7z" fill="#ff6b6b" stroke="#111" stroke-width="1.1"/><circle cx="8" cy="10" r="1.25" fill="#4dabf7"/><circle cx="7.6" cy="13.8" r="1.25" fill="#ffd43b"/><circle cx="11.5" cy="16" r="1.25" fill="#51cf66"/><circle cx="15.2" cy="8.8" r="1.25" fill="#845ef7"/></svg> SKINS</button>
+    <button id="respawnBtn" class="roblox-shadow roblox-btn px-3 py-[6px] bg-white border-[3px] border-black rounded-[10px] text-[12px] font-bold mono"><svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-2px" fill="none" stroke="#111" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5A8 8 0 105.5 17"/><path d="M20 5.2v6.3h-6.3"/></svg> RESPAWN [R]</button>
+  </div>
+
+  <div id="springStatus" class="absolute top-[62px] left-1/2 -translate-x-1/2 z-20 hidden items-center gap-2 bg-[#0d47a1] text-white border-[3px] border-black rounded-full px-4 py-[6px] roblox-shadow">
+    <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 2c2 1.5 3 3.4 3 5.4 0 1.6-1 2.6-2.4 2.6.9-.9 1-1.9.5-2.9-.6 1.3-1.8 2-3.1 2-1.6 0-2.8-1.1-2.8-2.7C7.2 4.6 9.4 2.9 12 2z" fill="#80d8ff"/><path d="M12 8c2.4 1.6 3.6 3.8 3.6 6 0 2.3-1.8 3.8-4 3.6 1.4-.7 2-2 1.4-3.4-.8 1.4-2.3 2.2-3.8 2.2-2 0-3.6-1.5-3.6-3.6C5.6 10.8 8.6 8.6 12 8z" fill="#40c4ff"/></svg>
+    <span id="springStatusTxt" class="text-[12px] font-black mono">DOUBLE JUMP 0s</span>
+  </div>
+
+  <!-- Brief confirmation toast the instant the spiral is grabbed — lets you
+       verify the pickup actually registered even if the in-hand model is
+       hard to spot during fast movement. -->
+  <div id="equipToast" class="absolute top-[110px] left-1/2 -translate-x-1/2 z-20 hidden items-center gap-2 bg-[#00c853] text-white border-[3px] border-black rounded-full px-4 py-[6px] roblox-shadow" style="transition:opacity 0.25s ease-out;">
+    <span class="text-[12px] font-black mono">SPIRAL EQUIPPED!</span>
+  </div>
+
+  <!-- PC mouse-look hint and mobile pinch-zoom hint removed per user request -->
+
+  <div id="fallOverlay" class="absolute inset-0 bg-white pointer-events-none opacity-0 transition-opacity duration-200 z-30 flex items-center justify-center">
+    <div class="text-[28px] font-black tracking-tight text-black">OOF! — RESPAWNING</div>
+  </div>
+
+  <div id="winScreen" class="absolute inset-0 z-40 hidden flex-col items-center justify-center text-center p-6" style="background:radial-gradient(circle at center, #ffe082 0%, #ffb300 55%, #e65100 100%);">
+    <!-- animated confetti strips (pure CSS) -->
+    <div class="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+      <div class="absolute -top-10 left-[10%] w-3 h-8 bg-[#ff3b30] animate-[spin_2.4s_linear_infinite]" style="transform-origin:bottom"></div>
+      <div class="absolute -top-10 left-[30%] w-3 h-8 bg-[#00e676] animate-[spin_3.1s_linear_infinite]" style="transform-origin:bottom"></div>
+      <div class="absolute -top-10 left-[55%] w-3 h-8 bg-[#2196f3] animate-[spin_2.7s_linear_infinite]" style="transform-origin:bottom"></div>
+      <div class="absolute -top-10 left-[78%] w-3 h-8 bg-[#ffeb3b] animate-[spin_3.4s_linear_infinite]" style="transform-origin:bottom"></div>
+      <div class="absolute -top-10 left-[92%] w-3 h-8 bg-[#9c27b0] animate-[spin_2.1s_linear_infinite]" style="transform-origin:bottom"></div>
+    </div>
+
+    <div class="relative animate-[bounce_1.6s_ease-in-out_infinite] w-[70px] h-[70px] md:w-[110px] md:h-[110px] drop-shadow-[0_6px_0_rgba(0,0,0,0.35)]">
+      <svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M7 4h10v4a5 5 0 01-10 0V4z" fill="#ffd54f" stroke="#111" stroke-width="1"/><path d="M7 5H3.3v1.8A3.7 3.7 0 007 10.5M17 5h3.7v1.8a3.7 3.7 0 01-3.7 3.7" fill="none" stroke="#111" stroke-width="1"/><rect x="10.2" y="13.6" width="3.6" height="3" fill="#ffb300" stroke="#111" stroke-width="0.8"/><rect x="6.8" y="16.6" width="10.4" height="2.8" rx="1" fill="#ffca28" stroke="#111" stroke-width="1"/></svg>
+    </div>
+
+    <div class="relative text-[12px] mono border-[3px] border-black bg-white px-4 py-1 rounded-full mb-3 mt-1 flex items-center gap-1">
+      <svg viewBox="0 0 24 24" width="14" height="14"><rect x="3" y="3" width="3" height="3" fill="#ff6b6b" transform="rotate(20 4.5 4.5)"/><rect x="17" y="4" width="3" height="3" fill="#4dabf7" transform="rotate(-15 18.5 5.5)"/><rect x="4" y="16" width="3" height="3" fill="#ffd43b" transform="rotate(10 5.5 17.5)"/><rect x="17" y="16" width="3" height="3" fill="#51cf66" transform="rotate(-25 18.5 17.5)"/><circle cx="12" cy="4" r="1.3" fill="#845ef7"/><circle cx="12" cy="20" r="1.3" fill="#ff922b"/></svg>
+      FINISH LINE REACHED
+      <svg viewBox="0 0 24 24" width="14" height="14"><rect x="3" y="3" width="3" height="3" fill="#ff6b6b" transform="rotate(20 4.5 4.5)"/><rect x="17" y="4" width="3" height="3" fill="#4dabf7" transform="rotate(-15 18.5 5.5)"/><rect x="4" y="16" width="3" height="3" fill="#ffd43b" transform="rotate(10 5.5 17.5)"/><rect x="17" y="16" width="3" height="3" fill="#51cf66" transform="rotate(-25 18.5 17.5)"/><circle cx="12" cy="4" r="1.3" fill="#845ef7"/><circle cx="12" cy="20" r="1.3" fill="#ff922b"/></svg>
+    </div>
+
+    <div class="relative text-[56px] md:text-[92px] font-black leading-[0.88] tracking-tighter text-white drop-shadow-[0_6px_0_rgba(0,0,0,0.5)]">
+      CHAMPION!
+    </div>
+    <div class="relative text-[14px] mono text-white/90 mt-1">You conquered the spiral!</div>
+
+    <div class="relative mt-4 max-w-[440px] w-full bg-white border-[4px] border-black rounded-[20px] p-5 roblox-shadow">
+      <div class="mono text-[12px] opacity-60">RUN STATS</div>
+      <div class="grid grid-cols-3 gap-3 mt-3">
+        <div><div id="winTime" class="text-[22px] font-black">0s</div><div class="text-[10px] mono">TIME</div></div>
+        <div><div id="winFalls" class="text-[22px] font-black">0</div><div class="text-[10px] mono">FALLS</div></div>
+        <div><div id="winRank" class="text-[22px] font-black flex items-center justify-center"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M7 4h10v4a5 5 0 01-10 0V4z" fill="#ffd54f" stroke="#111" stroke-width="1"/><path d="M7 5H3.3v1.8A3.7 3.7 0 007 10.5M17 5h3.7v1.8a3.7 3.7 0 01-3.7 3.7" fill="none" stroke="#111" stroke-width="1"/><rect x="10.2" y="13.6" width="3.6" height="3" fill="#ffb300" stroke="#111" stroke-width="0.8"/><rect x="6.8" y="16.6" width="10.4" height="2.8" rx="1" fill="#ffca28" stroke="#111" stroke-width="1"/></svg></div><div class="text-[10px] mono">RANK</div></div>
+      </div>
+      <button onclick="location.reload()" class="mt-5 w-full roblox-shadow roblox-btn bg-[#00e676] border-[3px] border-black rounded-[12px] py-3 font-black text-[14px] flex items-center justify-center gap-1">PLAY AGAIN <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#111" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5A8 8 0 105.5 17"/><path d="M20 5.2v6.3h-6.3"/></svg></button>
+    </div>
+  </div>
+
+  <div id="stage1Complete" class="absolute inset-0 z-45 hidden flex-col items-center justify-center text-center p-6 pointer-events-auto" style="background:radial-gradient(circle at center, rgba(255,255,255,.97), rgba(224,247,250,.97) 45%, rgba(129,212,250,.98) 100%);">
+    <div class="text-[11px] mono border-[3px] border-black bg-white px-4 py-1 rounded-full mb-3">STAGE 1 COMPLETE</div>
+    <div class="text-[48px] md:text-[76px] font-black leading-none tracking-tighter text-[#1565c0]">SKY SUMMIT</div>
+    <div class="text-[14px] mono mt-2 opacity-70">You made it to the summit!</div>
+    <div class="mt-5 max-w-[440px] w-full bg-white border-[4px] border-black rounded-[20px] p-5 roblox-shadow">
+      <div class="mono text-[12px] opacity-60">RUN STATS</div>
+      <div class="grid grid-cols-2 gap-4 mt-3">
+        <div><div id="stage1Time" class="text-[25px] font-black">0s</div><div class="text-[10px] mono">TIME</div></div>
+        <div><div id="stage1Falls" class="text-[25px] font-black">0</div><div class="text-[10px] mono">FALLS</div></div>
+      </div>
+      <button id="nextLevelBtn" class="mt-5 w-full roblox-shadow roblox-btn bg-[#7c4dff] text-white border-[3px] border-black rounded-[12px] py-3 font-black text-[14px]">ENTER LEVEL 2 →</button>
+      <div class="mt-2 text-[10px] mono opacity-50">Level 2 starts automatically in a few seconds.</div>
+    </div>
+  </div>
+
+  <div id="level2Toast" class="absolute top-[108px] left-1/2 -translate-x-1/2 z-40 hidden flex-col items-center text-center pointer-events-none" style="transition:opacity .4s ease-out;">
+    <div class="bg-[#111]/90 text-white border-[4px] border-[#7c4dff] rounded-[18px] px-6 py-3 shadow-[0_5px_0_rgba(0,0,0,.35)]">
+      <div class="text-[12px] mono text-[#b388ff]">LEVEL 2</div>
+      <div class="text-[26px] font-black">NIGHT SKY — FLIGHT RUN</div>
+      <div class="text-[11px] mono text-white/70">HOLD JUMP TO FLY</div>
+    </div>
+  </div>
+
+  <!-- Mobile-only controls: analog movement joystick (bottom-left) and a
+       jump button (bottom-right). Both are display:none by default and only
+       revealed on touch-primary devices via the pointer:coarse media query
+       above, so they never show up for mouse/trackpad users. -->
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <button id="jumpBtn" class="roblox-shadow"></button>
+
+  <!-- SKINS MENU -->
+  <div id="skinsScreen" class="absolute inset-0 z-40 hidden flex-col items-center justify-center text-center p-6 bg-[#111]/95">
+    <button id="skinsCloseX" class="absolute top-3 right-3 w-[38px] h-[38px] rounded-full bg-[#ff3b3b] text-white border-[3px] border-black roblox-shadow roblox-btn flex items-center justify-center">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>
+    </button>
+    <div class="text-[28px] md:text-[42px] font-black text-white tracking-tight drop-shadow-[0_4px_0_rgba(0,0,0,0.5)]">CHARACTER SKINS</div>
+    <div class="text-[12px] mono text-white/60 mt-1">Pick a character skin</div>
+    <div id="skinCards" class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-[700px] w-full"></div>
+    <button id="skinsClose" class="mt-6 roblox-shadow roblox-btn bg-[#ff3b3b] text-white border-[3px] border-black rounded-[12px] px-6 py-3 font-black text-[14px] flex items-center justify-center gap-1 mx-auto">CLOSE <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+  </div>
+</div>
+
+<script>
+// Runs immediately (not a module) so the progress bar starts animating
+// right away, even while the three.js module is still being fetched.
+(function(){
+  const bar = document.getElementById('loadingBar');
+  const pct = document.getElementById('loadingPct');
+  let p = 0;
+  const t = setInterval(()=>{
+    p = Math.min(92, p + (92-p)*0.12 + 1.2);
+    bar.style.width = p.toFixed(0)+'%';
+    pct.textContent = Math.round(p)+'%';
+  }, 90);
+  window.__finishLoading = function(){
+    clearInterval(t);
+    bar.style.width = '100%';
+    pct.textContent = '100%';
+    const screen = document.getElementById('loadingScreen');
+    setTimeout(()=>{
+      screen.style.transition = 'opacity 0.45s ease-out';
+      screen.style.opacity = '0';
+      screen.style.pointerEvents = 'none';
+      setTimeout(()=>screen.remove(), 500);
+    }, 180);
+  };
+})();
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// A tiny library of hand-drawn flat-style SVG icons used in place of emoji
+// throughout the UI (buttons, status messages, badges) — real vector art
+// instead of platform-dependent emoji glyphs.
+const ICONS = {
+  run:      `<svg viewBox="0 0 24 24" width="20" height="20" style="vertical-align:-5px"><circle cx="14.5" cy="4.5" r="2.3" fill="#ffde59" stroke="#111" stroke-width="1"/><path d="M13 8l-2.2 4.2 3.4 2-1 5.3" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 14l-3 2 1 4" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.2 11.6l4 .8 2.3 3.1" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  soundOn:  `<svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-2px"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="#111"/><path d="M15.5 8.2a5 5 0 010 7.6" stroke="#111" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M18 5.5a9 9 0 010 13" stroke="#111" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`,
+  soundOff: `<svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-2px"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="#111"/><path d="M16 9.5l5 5M21 9.5l-5 5" stroke="#d32f2f" stroke-width="2.2" stroke-linecap="round"/></svg>`,
+  palette:  `<svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-2px"><path d="M12 3a9 8 0 100 16c1.15 0 2-.85 2-1.9 0-.5-.2-.9-.5-1.3-.35-.4-.1-1.05.45-1.1H16a4 4 0 004-4c0-4.4-3.6-7.7-8-7.7z" fill="#ff6b6b" stroke="#111" stroke-width="1.1"/><circle cx="8" cy="10" r="1.25" fill="#4dabf7"/><circle cx="7.6" cy="13.8" r="1.25" fill="#ffd43b"/><circle cx="11.5" cy="16" r="1.25" fill="#51cf66"/><circle cx="15.2" cy="8.8" r="1.25" fill="#845ef7"/></svg>`,
+  reload:   `<svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-2px" fill="none" stroke="#111" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5A8 8 0 105.5 17"/><path d="M20 5.2v6.3h-6.3"/></svg>`,
+  tv:       `<svg viewBox="0 0 24 24" width="14" height="14" style="vertical-align:-2px"><rect x="3" y="6.5" width="18" height="11.5" rx="2" fill="#37474f" stroke="#111" stroke-width="1.3"/><rect x="5" y="8.5" width="14" height="7.5" fill="#80deea"/><path d="M8 6.5l3-3M16 6.5l-3-3" stroke="#111" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  trophy:   `<svg viewBox="0 0 24 24" width="1em" height="1em" style="vertical-align:-0.12em"><path d="M7 4h10v4a5 5 0 01-10 0V4z" fill="#ffd54f" stroke="#111" stroke-width="1.2"/><path d="M7 5H3.3v1.8A3.7 3.7 0 007 10.5M17 5h3.7v1.8a3.7 3.7 0 01-3.7 3.7" fill="none" stroke="#111" stroke-width="1.2"/><rect x="10.2" y="13.6" width="3.6" height="3" fill="#ffb300" stroke="#111" stroke-width="1"/><rect x="6.8" y="16.6" width="10.4" height="2.8" rx="1" fill="#ffca28" stroke="#111" stroke-width="1.2"/></svg>`,
+  confetti: `<svg viewBox="0 0 24 24" width="14" height="14" style="vertical-align:-1px"><rect x="3" y="3" width="3" height="3" fill="#ff6b6b" transform="rotate(20 4.5 4.5)"/><rect x="17" y="4" width="3" height="3" fill="#4dabf7" transform="rotate(-15 18.5 5.5)"/><rect x="4" y="16" width="3" height="3" fill="#ffd43b" transform="rotate(10 5.5 17.5)"/><rect x="17" y="16" width="3" height="3" fill="#51cf66" transform="rotate(-25 18.5 17.5)"/><circle cx="12" cy="4" r="1.3" fill="#845ef7"/><circle cx="12" cy="20" r="1.3" fill="#ff922b"/></svg>`,
+  close:    `<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-1px" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>`,
+  warning:  `<svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-3px"><path d="M12 3.2l10 17.6H2L12 3.2z" fill="#ffca28" stroke="#111" stroke-width="1.2" stroke-linejoin="round"/><rect x="11.1" y="9" width="1.8" height="6" fill="#111"/><rect x="11.1" y="16.2" width="1.8" height="1.8" fill="#111"/></svg>`,
+  clapper:  `<svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-3px"><rect x="3" y="9.5" width="18" height="11" rx="1.5" fill="#37474f" stroke="#111" stroke-width="1.1"/><path d="M3 9.5l1.8-4.6 3 1.8-1.8 2.8H3zM8.4 9.5l1.8-4.6 3 1.8-1.8 2.8H8.4zM13.8 9.5l1.8-4.6 3 1.8-1.8 2.8h-3z" fill="#ffca28" stroke="#111" stroke-width="0.9"/></svg>`,
+  check:    `<svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-3px"><circle cx="12" cy="12" r="10" fill="#a5d6a7" stroke="#2e7d32" stroke-width="1.4"/><path d="M7.2 12.3l3.2 3.2 6.4-6.6" fill="none" stroke="#2e7d32" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  lock:     `<svg viewBox="0 0 24 24" width="14" height="14"><rect x="5" y="11" width="14" height="9" rx="2" fill="#616161" stroke="#111" stroke-width="1.2"/><path d="M8 11V8a4 4 0 018 0v3" fill="none" stroke="#111" stroke-width="1.6"/><circle cx="12" cy="15" r="1.5" fill="#ffca28"/></svg>`,
+};
+
+const canvas = document.getElementById('c');
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x87d3fb, 90, 620);
+scene.background = new THREE.Color(0x87d3fb);
+
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, powerPreference:'high-performance'});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+// Cheap, rough heuristic for "likely a low-end device" — fewer logical
+// cores and/or a touch-primary display usually means an integrated/mobile
+// GPU. Dropping shadow resolution and switching off the soft-shadow PCF
+// blur there meaningfully cuts fill-rate cost with barely a visible
+// difference, and keeps the desktop/high-end look untouched.
+const isLikelyLowEnd = (navigator.hardwareConcurrency || 8) <= 4 || matchMedia('(pointer:coarse)').matches;
+renderer.shadowMap.type = isLikelyLowEnd ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth/window.innerHeight, 0.1, 1500);
+let camYaw   = -Math.PI*0.25;
+let camPitch = -0.48;
+let camDist  = 13;   // tighter default so desktop's wider view doesn't start too far back
+let camTarget    = new THREE.Vector3();
+let camDesiredDist = camDist;
+const LOOK_SENSITIVITY = 0.0072; // touch/mouse drag-to-look sensitivity (raised for a snappier feel)
+
+// Stage 2 sky props: a moon + a small star field, kept lightweight for mobile.
+const moon = new THREE.Mesh(
+  new THREE.SphereGeometry(7, 24, 16),
+  new THREE.MeshStandardMaterial({color:0xdfe8ff, emissive:0x6677bb, emissiveIntensity:0.55, roughness:0.8})
+);
+moon.position.set(-120,190,-180);
+moon.visible = false;
+scene.add(moon);
+const nightStars = new THREE.Group();
+const starMat2 = new THREE.MeshBasicMaterial({color:0xffffff});
+for(let i=0;i<90;i++){
+  const st = new THREE.Mesh(new THREE.SphereGeometry(0.18,5,5), starMat2);
+  st.position.set((Math.random()-0.5)*500, 80+Math.random()*180, (Math.random()-0.5)*500);
+  nightStars.add(st);
+}
+nightStars.visible = false;
+scene.add(nightStars);
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.85);
+scene.add(ambient);
+const hemi = new THREE.HemisphereLight(0xffffff, 0x3a8dde, 0.6);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+sun.position.set(80,200,60);
+sun.castShadow = true;
+sun.shadow.mapSize.set(isLikelyLowEnd ? 1024 : 2048, isLikelyLowEnd ? 1024 : 2048);
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 400;
+sun.shadow.camera.left = -120;
+sun.shadow.camera.right = 120;
+sun.shadow.camera.top = 120;
+sun.shadow.camera.bottom = -120;
+sun.shadow.bias = -0.0003;
+scene.add(sun);
+
+/* ════════════════════════════════════════════════════════════
+   AUDIO SYSTEM — synthesized instrument-style SFX + a looping
+   background melody, all via the Web Audio API. No external
+   files/CDNs — everything is generated on the fly, so it works
+   fully offline. Tones are layered (fundamental + soft upper
+   harmonic), smoothly enveloped, and pushed through a synthesized
+   reverb tail so they sound like soft mallets/pads/bells instead
+   of raw chiptune beeps.
+   ════════════════════════════════════════════════════════════ */
+let audioCtx = null;
+let masterGain = null;   // everything (sfx + music) — toggled by the mute button
+let sfxGain = null;
+let musicGain = null;
+let reverbNode = null;   // convolver — shared "room" send for warmth
+let reverbSendGain = null;
+let audioMuted = false;
+
+function createReverbImpulse(ctx, duration, decay){
+  const rate = ctx.sampleRate;
+  const length = Math.max(1, Math.floor(rate*duration));
+  const impulse = ctx.createBuffer(2, length, rate);
+  for(let ch=0; ch<2; ch++){
+    const data = impulse.getChannelData(ch);
+    for(let i=0;i<length;i++){
+      data[i] = (Math.random()*2-1) * Math.pow(1 - i/length, decay);
+    }
+  }
+  return impulse;
+}
+
+function ensureAudio(){
+  if(audioCtx) return audioCtx;
+  try{
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = audioMuted ? 0 : 0.85;
+    masterGain.connect(audioCtx.destination);
+
+    sfxGain = audioCtx.createGain();   sfxGain.gain.value = 0.6;  sfxGain.connect(masterGain);
+    musicGain = audioCtx.createGain(); musicGain.gain.value = 0.32; musicGain.connect(masterGain);
+
+    reverbNode = audioCtx.createConvolver();
+    reverbNode.buffer = createReverbImpulse(audioCtx, 2.4, 2.6);
+    reverbSendGain = audioCtx.createGain();
+    reverbSendGain.gain.value = 0.55;
+    reverbNode.connect(reverbSendGain);
+    reverbSendGain.connect(masterGain);
+  }catch(e){ console.warn('[audio] Web Audio API unavailable', e); }
+  return audioCtx;
+}
+function resumeAudio(){
+  const ctx = ensureAudio();
+  if(ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
+  if(ctx && !musicPlaying) startMusic();
+}
+// Browsers block audio until a user gesture — unlock on the first one.
+['pointerdown','keydown','touchstart'].forEach(evt=>{
+  window.addEventListener(evt, resumeAudio, {once:true, passive:true});
+});
+
+// Warm layered "instrument" tone: a sine fundamental + a quiet triangle
+// octave overtone, soft attack/release, with a send to the reverb tail.
+// This reads as a mallet/bell/pad rather than a flat chiptune beep.
+function playTone(freq, dur, opts){
+  const ctx = ensureAudio();
+  if(!ctx || audioMuted) return;
+  opts = opts || {};
+  const type      = opts.type || 'sine';
+  const gainAmt   = opts.gain != null ? opts.gain : 0.22;
+  const glideTo   = opts.glideTo || null;
+  const delay     = opts.delay || 0;
+  const overtone  = opts.overtone !== false;
+  const reverbAmt = opts.reverb != null ? opts.reverb : 0.35;
+  const bus       = opts.bus || sfxGain;
+  const t0 = ctx.currentTime + delay;
+
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.value = opts.cutoff || 3200;
+
+  const osc = ctx.createOscillator();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if(glideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(20,glideTo), t0+dur);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.001,gainAmt), t0+Math.min(0.03,dur*0.25));
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  osc.connect(filt); filt.connect(gain); gain.connect(bus);
+  if(reverbAmt>0){
+    const send = ctx.createGain(); send.gain.value = reverbAmt;
+    gain.connect(send); send.connect(reverbNode);
+  }
+  osc.start(t0); osc.stop(t0+dur+0.05);
+
+  if(overtone){
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(freq*2, t0);
+    if(glideTo) osc2.frequency.exponentialRampToValueAtTime(Math.max(40,glideTo*2), t0+dur);
+    const gain2 = ctx.createGain();
+    gain2.gain.setValueAtTime(0.0001, t0);
+    gain2.gain.exponentialRampToValueAtTime(gainAmt*0.22, t0+Math.min(0.03,dur*0.25));
+    gain2.gain.exponentialRampToValueAtTime(0.0001, t0+dur*0.7);
+    osc2.connect(gain2); gain2.connect(bus);
+    osc2.start(t0); osc2.stop(t0+dur+0.05);
+  }
+}
+
+// Soft filtered noise burst (footsteps, thuds) — heavily low-passed and
+// gently faded so it reads as a natural "whump" rather than harsh static.
+function playNoise(dur, startGain, delay, filterFreq){
+  const ctx = ensureAudio();
+  if(!ctx || audioMuted) return;
+  delay = delay || 0;
+  const t0 = ctx.currentTime + delay;
+  const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * dur));
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  let last = 0;
+  for(let i=0;i<bufferSize;i++){
+    const white = Math.random()*2-1;
+    last = (last + 0.12*white) / 1.12; // simple low-pass-ish smoothing so it isn't harsh static
+    data[i] = last * (1 - i/bufferSize);
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.value = filterFreq || 700;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(Math.max(0.001,startGain), t0);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  src.connect(filt); filt.connect(gain); gain.connect(sfxGain);
+  const send = ctx.createGain(); send.gain.value = 0.25;
+  gain.connect(send); send.connect(reverbNode);
+  src.start(t0); src.stop(t0+dur+0.02);
+}
+
+// Soft rounded upward swoop — reads like a real "hop" rather than a beep.
+function playJumpSFX(){
+  playTone(300, 0.22, {type:'sine', gain:0.24, glideTo:560, cutoff:2400, reverb:0.28});
+}
+// Bright ascending bell chime for hitting a new checkpoint.
+function playCheckpointSFX(){
+  playTone(659.25, 0.35, {type:'sine', gain:0.22, cutoff:4000, reverb:0.45, delay:0});
+  playTone(783.99, 0.38, {type:'sine', gain:0.20, cutoff:4000, reverb:0.45, delay:0.09});
+  playTone(1046.5, 0.5,  {type:'sine', gain:0.18, cutoff:4500, reverb:0.5,  delay:0.18});
+}
+// Shimmering swirl for grabbing the spiral power-up — a quick upward glide.
+function playSpringPickupSFX(){
+  playTone(420, 0.30, {type:'sine', gain:0.20, glideTo:980, cutoff:5000, reverb:0.35, delay:0});
+  playTone(630, 0.30, {type:'sine', gain:0.16, glideTo:1260, cutoff:5000, reverb:0.35, delay:0.05});
+}
+// Triumphant ascending fanfare + shimmering chord for the finish platform.
+function playVictorySFX(){
+  const notes = [523.25, 659.25, 783.99, 1046.5];
+  notes.forEach((f,i)=> playTone(f, 0.4, {type:'sine', gain:0.22, cutoff:4500, reverb:0.5, delay:i*0.12}));
+  const chordDelay = notes.length*0.12;
+  [1046.5, 1318.5, 1568.0].forEach(f=>{
+    playTone(f, 0.9, {type:'sine', gain:0.14, cutoff:5000, reverb:0.6, delay:chordDelay});
+  });
+}
+// Falling pitch drop + soft low thud for a fail/respawn — mellow, not harsh.
+function playFallSFX(){
+  playTone(240, 0.4, {type:'sine', gain:0.20, glideTo:70, cutoff:1200, reverb:0.3, overtone:false});
+  playNoise(0.28, 0.14, 0.06, 380);
+}
+
+/* ── BACKGROUND MUSIC — energetic looping riff + driving bassline and
+   a simple kick/hihat/clap beat, all synthesized (no audio files), so
+   it feels like a hype action-platformer track instead of a soft pad.
+   Still built on a consonant pentatonic scale so nothing clashes even
+   with everything layered together. */
+const MUSIC_BPM = 140;
+const beatSec = 60/MUSIC_BPM;
+// Short, punchy, syncopated riff (mostly 8th/16th notes) instead of long
+// sustained notes — reads as driving rather than ambient.
+const musicMelody = [
+  {f:659.25,b:0.5},{f:659.25,b:0.5},{f:0,b:0.5},{f:659.25,b:0.5},
+  {f:783.99,b:0.5},{f:0,b:0.5},{f:987.77,b:0.5},{f:880.00,b:0.5},
+  {f:659.25,b:0.5},{f:659.25,b:0.5},{f:0,b:0.5},{f:783.99,b:0.5},
+  {f:987.77,b:1},{f:0,b:1},
+  {f:587.33,b:0.5},{f:587.33,b:0.5},{f:0,b:0.5},{f:587.33,b:0.5},
+  {f:659.25,b:0.5},{f:0,b:0.5},{f:880.00,b:0.5},{f:783.99,b:0.5},
+  {f:587.33,b:0.5},{f:659.25,b:0.5},{f:0,b:0.5},{f:783.99,b:0.5},
+  {f:659.25,b:1},{f:0,b:1},
+];
+const musicLoopBeats = musicMelody.reduce((s,n)=>s+n.b, 0); // 16 beats
+// One root per beat, driving eighth-note pulse (not slow whole-bar pads).
+const musicBassRoots = [
+  164.81,164.81,164.81,164.81, 196.00,196.00,146.83,146.83,
+  130.81,130.81,130.81,130.81, 196.00,196.00,164.81,164.81,
+];
+
+let musicPlaying = false;
+let musicSchedulerHandle = null;
+let musicNextNoteTime = 0, musicIdx = 0;
+let musicNextBassTime = 0, musicBassIdx = 0;
+let musicNextDrumTime = 0, musicDrumIdx = 0;
+
+// Bright sawtooth lead with a fast punchy envelope — cuts through instead
+// of sitting soft in the background.
+function playMusicTone(freq, dur, time){
+  const ctx = audioCtx;
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass'; filt.frequency.value = 3600;
+  const osc1 = ctx.createOscillator(); osc1.type = 'sawtooth'; osc1.frequency.value = freq;
+  const osc2 = ctx.createOscillator(); osc2.type = 'square';   osc2.frequency.value = freq; osc2.detune.value = 8;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(0.20, time+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+  osc1.connect(filt); osc2.connect(filt); filt.connect(g); g.connect(musicGain);
+  const send = ctx.createGain(); send.gain.value = 0.22;
+  g.connect(send); send.connect(reverbNode);
+  osc1.start(time); osc1.stop(time+dur+0.05);
+  osc2.start(time); osc2.stop(time+dur+0.05);
+}
+// Punchy driving bass — short plucky envelope instead of long sustain,
+// so it locks in with the beat rather than droning underneath it.
+function playMusicBass(freq, dur, time){
+  const ctx = audioCtx;
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass'; filt.frequency.value = 900;
+  const osc = ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = freq;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(0.22, time+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, time+Math.min(dur,0.22));
+  osc.connect(filt); filt.connect(g); g.connect(musicGain);
+  osc.start(time); osc.stop(time+dur+0.05);
+}
+// Short low pitched-down thump for the kick.
+function playMusicKick(time){
+  const ctx = audioCtx;
+  const osc = ctx.createOscillator(); osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, time);
+  osc.frequency.exponentialRampToValueAtTime(45, time+0.12);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.9, time);
+  g.gain.exponentialRampToValueAtTime(0.001, time+0.16);
+  osc.connect(g); g.connect(musicGain);
+  osc.start(time); osc.stop(time+0.2);
+}
+// Crisp filtered-noise hihat tick.
+function playMusicHihat(time, open){
+  const ctx = audioCtx;
+  const dur = open ? 0.14 : 0.045;
+  const bufferSize = Math.max(1, Math.floor(ctx.sampleRate*dur));
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * (1 - i/bufferSize);
+  const src = ctx.createBufferSource(); src.buffer = buffer;
+  const filt = ctx.createBiquadFilter(); filt.type = 'highpass'; filt.frequency.value = 7000;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(open ? 0.16 : 0.12, time);
+  g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+  src.connect(filt); filt.connect(g); g.connect(musicGain);
+  src.start(time); src.stop(time+dur+0.02);
+}
+// Snappy filtered-noise clap on the backbeat.
+function playMusicClap(time){
+  const ctx = audioCtx;
+  const dur = 0.18;
+  const bufferSize = Math.max(1, Math.floor(ctx.sampleRate*dur));
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * (1 - i/bufferSize);
+  const src = ctx.createBufferSource(); src.buffer = buffer;
+  const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 1800; filt.Q.value = 1.2;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.001, time);
+  g.gain.linearRampToValueAtTime(0.22, time+0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+  src.connect(filt); filt.connect(g); g.connect(musicGain);
+  src.start(time); src.stop(time+dur+0.02);
+}
+function musicSchedulerTick(){
+  if(!musicPlaying || !audioCtx) return;
+  const horizon = audioCtx.currentTime + 0.25;
+  while(musicNextNoteTime < horizon){
+    const note = musicMelody[musicIdx % musicMelody.length];
+    if(note.f>0) playMusicTone(note.f, note.b*beatSec*0.85, musicNextNoteTime);
+    musicNextNoteTime += note.b*beatSec;
+    musicIdx++;
+  }
+  while(musicNextBassTime < horizon){
+    const root = musicBassRoots[musicBassIdx % musicBassRoots.length];
+    playMusicBass(root, beatSec*0.9, musicNextBassTime);
+    musicNextBassTime += beatSec;
+    musicBassIdx++;
+  }
+  // Four-on-the-floor-ish beat on a 16th-note grid: kick on 1&3, clap on
+  // 2&4 (backbeat), hihat on every 8th note — classic driving feel.
+  const stepSec = beatSec/4;
+  while(musicNextDrumTime < horizon){
+    const step = musicDrumIdx % 16;
+    if(step===0 || step===8)              playMusicKick(musicNextDrumTime);
+    if(step===4 || step===12)             playMusicClap(musicNextDrumTime);
+    if(step%2===0)                        playMusicHihat(musicNextDrumTime, step===14);
+    musicNextDrumTime += stepSec;
+    musicDrumIdx++;
+  }
+}
+function startMusic(){
+  const ctx = ensureAudio();
+  if(!ctx || musicPlaying) return;
+  musicPlaying = true;
+  musicNextNoteTime = ctx.currentTime + 0.15;
+  musicNextBassTime = musicNextNoteTime;
+  musicNextDrumTime = musicNextNoteTime;
+  musicIdx = 0; musicBassIdx = 0; musicDrumIdx = 0;
+  musicSchedulerHandle = setInterval(musicSchedulerTick, 100);
+  musicSchedulerTick();
+}
+
+function setAudioMuted(m){
+  audioMuted = m;
+  if(masterGain) masterGain.gain.value = m ? 0 : 0.85;
+  const btn = document.getElementById('muteBtn');
+  if(btn) btn.innerHTML = m ? (ICONS.soundOff+' MUTED') : (ICONS.soundOn+' SOUND');
+}
+const muteBtn = document.getElementById('muteBtn');
+if(muteBtn){
+  muteBtn.addEventListener('click', ()=>{
+    resumeAudio();
+    setAudioMuted(!audioMuted);
+  });
+}
+setAudioMuted(false); // paint the initial "SOUND" icon/label right away
+
+/* ════════════════════════════════════════════════════════════
+   PHYSICS CONSTANTS
+   ════════════════════════════════════════════════════════════ */
+const MOVE_SPEED   = 12.0;   // studs/sec
+const JUMP_V0      = 16.0;   // initial upward impulse
+const G_UP         = 30.0;   // gravity while rising
+const G_DOWN       = 48.0;   // gravity while falling (heavy)
+const G_APEX       = 19.0;   // gravity near peak (floaty hang)
+const APEX_WINDOW  = 2.6;    // |vy| below this = apex zone
+const MAX_FALL     = 62.0;   // terminal velocity
+const AIR_ACCEL    = 60.0;   // air control acceleration (studs/s²)
+const GROUND_ACCEL = 180.0;  // ground acceleration
+const GROUND_FRICT = 0.0004; // ground friction factor
+const AIR_FRICT     = 0.05;  // gentle-but-firm air drag applied only when the stick is released mid-air
+
+// Collision margins — small, to prevent snapping
+const STEP_UP      = 0.42;
+const STEP_DOWN    = 0.55;
+const SKIN         = 0.02;
+const BOUNCE_VELOCITY = JUMP_V0 * 1.7;   // launch speed off a bounce-pad platform
+
+const JUMP_PEAK = (JUMP_V0*JUMP_V0)/(2*G_UP);   // ≈ 4.27 studs
+const T_RISE    = JUMP_V0/G_UP;                   // ≈ 0.53 s
+const FIXED_DT  = 1/120;                          // 120 Hz physics
+
+function jumpRange(dy){
+  if(dy > JUMP_PEAK - 0.8) return -1;
+  const fallDist = Math.max(0.05, JUMP_PEAK - dy);
+  const tFall = Math.sqrt(2*fallDist/G_DOWN);
+  return MOVE_SPEED * (T_RISE + tFall + 0.10);
+}
+
+/* ════════════════════════════════════════════════════════════
+   AVATAR RIG METRICS  (feet = local y=0)
+   ════════════════════════════════════════════════════════════ */
+// Uniform scale applied to all avatar metrics. Feet stay at local y=0.
+const AVATAR_SCALE = 0.72;
+const THIGH_LEN  = 1.00 * AVATAR_SCALE;
+const SHIN_LEN   = 1.00 * AVATAR_SCALE;
+const LEG_LEN    = THIGH_LEN + SHIN_LEN;
+const TORSO_H    = 2.00 * AVATAR_SCALE;
+const HEAD_S     = 1.25 * AVATAR_SCALE;
+const HIP_Y      = LEG_LEN;
+const SHOULDER_Y = HIP_Y + TORSO_H;
+const HEAD_Y     = SHOULDER_Y + HEAD_S/2;
+const BODY_H     = SHOULDER_Y + HEAD_S;
+const LEG_SPLIT  = 0.52 * AVATAR_SCALE;
+const LEG_W      = 0.80 * AVATAR_SCALE;
+// Shoulder/hip attachment points scale with avatar
+const ARM_SHOULDER_OFFSET = 1.32 * AVATAR_SCALE;
+const ARM_LEN             = 2.00 * AVATAR_SCALE;
+const ARM_W               = 0.68 * AVATAR_SCALE;
+const TORSO_W             = 1.90 * AVATAR_SCALE;
+const TORSO_D             = 1.05 * AVATAR_SCALE;
+const PLAYER_RADIUS       = 0.55 * AVATAR_SCALE;
+
+const palette = [0xff2b2b, 0x00a2ff, 0x2ecc71, 0xffdd00, 0xff7a00, 0x9b59b6, 0x00e5ff, 0xf5f5f5];
+function matForTier(tier, i){
+  let base = palette[(i*3 + tier*2) % palette.length];
+  if(tier===2 && Math.random()<0.4) base = 0x222222;
+  return base;
+}
+// Plain (non-moving, non-bounce) platforms reuse one shared material per
+// color instead of allocating a fresh MeshStandardMaterial per platform —
+// same 8-ish colors repeat across 320 platforms anyway, so this cuts
+// ~300 material/shader instances down to a handful with zero visual
+// change. Moving/bounce platforms still get their own material since
+// their color+emissive gets mutated individually per-instance.
+const _platformMatCache = new Map();
+function sharedTierMaterial(colorHex){
+  let m = _platformMatCache.get(colorHex);
+  if(!m){
+    m = new THREE.MeshStandardMaterial({color:colorHex, roughness:0.75, metalness:0.02});
+    _platformMatCache.set(colorHex, m);
+  }
+  return m;
+}
+
+const platforms = [];
+const numTiers       = 7;                 // progressive stages — more tiers than before
+const totalPlatforms = 470;               // Stage 1 (0-319) + Stage 2 (320-469) — longer Level 2
+const perTier        = Math.floor(totalPlatforms/numTiers);
+const STAGE1_END = 319;
+const STAGE2_START = 320;
+const STAGE2_END = totalPlatforms - 1;
+// A checkpoint at the start of every stage + the finish line
+let checkpointIndices = new Set([0]);
+for(let t=1;t<numTiers;t++) checkpointIndices.add(t*perTier);
+checkpointIndices.add(totalPlatforms-1);
+checkpointIndices.add(STAGE2_START);
+checkpointIndices.add(STAGE2_START+25);
+checkpointIndices.add(STAGE2_START+50);
+checkpointIndices.add(STAGE2_START+75);
+checkpointIndices.add(STAGE2_START+99);
+checkpointIndices.add(STAGE2_START+124);
+// Extra mid-tier checkpoints so players save progress ~50% more often overall
+// (adds one checkpoint at the midpoint of every other tier)
+for(let t=0;t<numTiers;t+=2){
+  const mid = t*perTier + Math.floor(perTier/2);
+  if(mid>0 && mid<totalPlatforms-1) checkpointIndices.add(mid);
+}
+let lastCheckpoint = {pos:new THREE.Vector3(0,2.5,0), index:0};
+let level2Active = false;
+let level2IntroShown = false;
+let stage1Transition = false;
+let stage1Time = 0;
+let stage1AutoTimer = null;
+let level2Night = false;
+const level2Toast = document.getElementById('level2Toast');
+
+// ── SAVE / LOAD PROGRESS — remembers the last checkpoint reached so that
+// closing the game and coming back resumes there instead of at platform 0.
+// Only the checkpoint INDEX is saved, not raw coordinates: the spiral's
+// platform layout is regenerated fresh every session (uses Math.random),
+// so we look the index back up in the newly-built platformObjs array once
+// it exists — that always gives the correct spawn spot for that checkpoint
+// regardless of how the layout came out this time.
+const SAVE_KEY = 'skyParkour_lastCheckpoint';
+function saveCheckpointProgress(){
+  try{ localStorage.setItem(SAVE_KEY, String(lastCheckpoint.index)); }catch(e){}
+}
+function loadCheckpointProgress(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(raw === null) return null;
+    const idx = parseInt(raw, 10);
+    if(!Number.isFinite(idx) || idx < 0) return null;
+    return idx;
+  }catch(e){ return null; }
+}
+// Floating spiral power-ups that hover in the sky above checkpoints. Walking
+// through one attaches it to the player's hand and halves gravity for a
+// while (2x jump height + 2x longer/farther falls).
+const springPickups = [];
+let springBuffWasActive = false; // tracks buff→expired transitions so spirals can respawn
+const SPRING_DURATION   = 15;    // seconds the power-up lasts once collected
+const SPRING_PICKUP_R_H  = 2.6;  // studs — sideways reach (generous, so
+                                  // walking near the spiral is enough)
+const SPRING_PICKUP_R_V  = 4.2;  // studs — vertical reach (covers feet-to-
+                                  // head range since the spiral floats high)
+
+// A tapered helical curve used to build each spiral's tube geometry.
+class SpiralCurve extends THREE.Curve{
+  constructor(radius, height, turns){
+    super();
+    this.radius = radius; this.height = height; this.turns = turns;
+  }
+  getPoint(t, target){
+    target = target || new THREE.Vector3();
+    const angle = t * Math.PI * 2 * this.turns;
+    const y = t*this.height - this.height/2;
+    return target.set(Math.cos(angle)*this.radius, y, Math.sin(angle)*this.radius);
+  }
+}
+const springGeo = new THREE.TubeGeometry(new SpiralCurve(0.55, 1.7, 4), 180, 0.11, 8, false);
+const springMat = new THREE.MeshStandardMaterial({color:0x2196f3, emissive:0x1565c0, emissiveIntensity:0.55, metalness:0.55, roughness:0.25});
+const _springWorldPos = new THREE.Vector3();
+
+function makePlatformMesh(type, size, pos, rotY, tier, idx, extra){
+  extra = extra || {};
+  // Square up every flat block platform: no rectangles, only squares
+  // (circular platforms are left as circles — untouched below).
+  if(type==='cube'){
+    const s = Math.max(size.w, size.d);
+    size = Object.assign({}, size, {w:s, d:s});
+  } else if(type==='beam'){
+    const s = Math.max(size.length, size.w);
+    size = Object.assign({}, size, {length:s, w:s});
+  }
+  const group = new THREE.Group();
+  group.position.copy(pos);
+  group.rotation.y = rotY;
+  let collider = {type, pos:pos.clone(), rotY, top:pos.y, bottom:pos.y, halfW:0, halfD:0, radius:size.radius||0, ramp:null, isRamp:false, hazard:null, moving:null, bounce:false, disappearing:null, active:true};
+  let mesh;
+  const baseColor = matForTier(tier, idx);
+  // Moving/bounce platforms get their own material instance since its
+  // color+emissive is mutated individually below; ordinary platforms share
+  // one cached material per color (see sharedTierMaterial above).
+  let stdMat = (extra.moving || extra.bounce)
+    ? new THREE.MeshStandardMaterial({color:baseColor, roughness:0.75, metalness:0.02})
+    : sharedTierMaterial(baseColor);
+
+  // Moving platforms get a distinct cool-blue "machinery" tint so players can
+  // spot them at a glance; bounce pads get a hot glowing tint.
+  if(extra.moving){
+    stdMat.color.setHex(0x29b6f6);
+    stdMat.emissive = new THREE.Color(0x0288d1);
+    stdMat.emissiveIntensity = 0.4;
+  } else if(extra.bounce){
+    stdMat.color.setHex(0xff2fb0);
+    stdMat.emissive = new THREE.Color(0xff2fb0);
+    stdMat.emissiveIntensity = 0.55;
+  } else if(extra.disappearing){
+    stdMat.color.setHex(0xffd54f);
+    stdMat.emissive = new THREE.Color(0xff8f00);
+    stdMat.emissiveIntensity = 0.35;
+  }
+
+  if(type==='cube'){
+    mesh = new THREE.Mesh(new THREE.BoxGeometry(size.w, size.h, size.d), stdMat);
+    mesh.position.y = size.h/2;
+    mesh.castShadow=true; mesh.receiveShadow=true;
+    group.add(mesh);
+    collider.top = pos.y + size.h;
+    collider.halfW = size.w/2; collider.halfD = size.d/2;
+  } else if(type==='cylinder'){
+    mesh = new THREE.Mesh(new THREE.CylinderGeometry(size.radius, size.radius, size.h, 20), stdMat);
+    mesh.position.y = size.h/2;
+    mesh.castShadow=true; mesh.receiveShadow=true;
+    group.add(mesh);
+    collider.top = pos.y + size.h;
+    collider.radius = size.radius;
+    collider.halfW = collider.halfD = size.radius;
+
+    // ── BOUNCE PAD — coiled spring rings that launch the player skyward ──
+    if(extra.bounce){
+      collider.bounce = true;
+      const springMat = new THREE.MeshStandardMaterial({color:0xffffff, emissive:0xff2fb0, emissiveIntensity:0.5, metalness:0.5, roughness:0.3});
+      for(let s=0;s<3;s++){
+        const coil = new THREE.Mesh(new THREE.TorusGeometry(size.radius*0.72, 0.09, 8, 20), springMat);
+        coil.rotation.x = Math.PI/2;
+        coil.position.y = size.h + 0.12 + s*0.22;
+        group.add(coil);
+      }
+    }
+  } else if(type==='beam'){
+    mesh = new THREE.Mesh(new THREE.BoxGeometry(size.length, size.h, size.w), stdMat);
+    mesh.position.y = size.h/2;
+    mesh.castShadow=true; mesh.receiveShadow=true;
+    group.add(mesh);
+    collider.top = pos.y + size.h;
+    collider.halfW = size.length/2; collider.halfD = size.w/2;
+  } else {
+    // Proper wedge/ramp: 6 unique corner vertices, 8 triangles, double-sided material
+    // Low edge at -L/2 (y=0), high edge at +L/2 (y=H)
+    const L = size.length, W = size.w, H = size.h;
+    //   v0 ─── v2 ─── v4       v0(-L/2, 0, -W/2)  v1(-L/2, 0, +W/2)
+    //   │ \     │ \     │       v2(+L/2, 0, -W/2)  v3(+L/2, 0, +W/2)
+    //   v1 ─── v3 ─── v5       v4(+L/2, H, -W/2)  v5(+L/2, H, +W/2)
+    const p = [
+      -L/2, 0, -W/2,   // 0  low-back-left
+      -L/2, 0,  W/2,   // 1  low-back-right
+       L/2, 0, -W/2,   // 2  low-front-left
+       L/2, 0,  W/2,   // 3  low-front-right
+       L/2, H, -W/2,   // 4  high-front-left
+       L/2, H,  W/2,   // 5  high-front-right
+    ];
+    const V = (i)=>[p[i*3], p[i*3+1], p[i*3+2]];
+
+    // Build each face with its own set of vertices so computeVertexNormals works per-face
+    const positions = [];
+    function pushTri(a,b,c){ positions.push(...V(a), ...V(b), ...V(c)); }
+    function pushQuad(a,b,c,d){ pushTri(a,b,c); pushTri(a,c,d); } // CCW winding
+
+    pushQuad(0,2,3,1);   // bottom  (y=0 plane, facing down)
+    pushQuad(0,1,5,4);   // slope   (top surface, facing up-ish)
+    pushQuad(2,4,5,3);   // front   (high end wall, +X face)
+    pushTri(0,4,2);      // left    (triangle, -Z face)
+    pushTri(1,3,5);      // right   (triangle, +Z face)
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.computeVertexNormals();
+    const rampMat = stdMat.clone();
+    rampMat.side = THREE.DoubleSide;       // visible from both sides
+    mesh = new THREE.Mesh(geo, rampMat);
+    mesh.castShadow=true; mesh.receiveShadow=true;
+    group.add(mesh);
+    collider.top = pos.y + H;
+    collider.halfW = L/2; collider.halfD = W/2;
+    collider.isRamp = true;
+    const dir = new THREE.Vector2(Math.cos(rotY), Math.sin(rotY));
+    collider.ramp = {dir, length:L, height:H, baseY:pos.y,
+      lowPos:new THREE.Vector3(pos.x - dir.x*L/2, pos.y, pos.z - dir.y*L/2), W};
+  }
+
+  // ── MOVING PLATFORM — slides back and forth; carries the player along ──
+  if(extra.moving){
+    collider.moving = {
+      dir: extra.moving.dir,
+      amplitude: extra.moving.amplitude,
+      speed: extra.moving.speed,
+      phase: extra.moving.phase,
+      base: pos.clone()
+    };
+  }
+
+  if(extra.disappearing){
+    collider.disappearing = {
+      period: extra.disappearing.period || 15.5,
+      phase: extra.disappearing.phase || 0,
+      visibleTime: extra.disappearing.visibleTime || 14.0
+    };
+  }
+
+  let isCheckpoint = checkpointIndices.has(idx);
+
+  // ── CHECKPOINT DECORATIONS — a green flag planted into the platform, plus
+  // a small copy of the spiral pickup that hovers a little above the surface
+  // near the edge, so checkpoints are easy to spot from a distance. ──
+  if(isCheckpoint && idx!==totalPlatforms-1){
+    const topY = collider.top - pos.y;
+    const edgeW = (collider.halfW||1.2) * 0.6;
+    const edgeD = (collider.halfD||1.2) * 0.6;
+
+    // Flag pole + green flag, planted in the middle of the platform (4x bigger)
+    const flagGroup = new THREE.Group();
+    flagGroup.position.set(0, topY, 0);
+    const poleMat = new THREE.MeshStandardMaterial({color:0xcfcfcf, metalness:0.6, roughness:0.35});
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 5.6, 8), poleMat);
+    pole.position.y = 2.8;
+    pole.castShadow = true;
+    flagGroup.add(pole);
+    const flagMat = new THREE.MeshStandardMaterial({color:0x2ecc40, emissive:0x1b8a2c, emissiveIntensity:0.4, side:THREE.DoubleSide, roughness:0.5});
+    const flagShape = new THREE.Shape();
+    flagShape.moveTo(0, 0);
+    flagShape.lineTo(2.2, 0.64);
+    flagShape.lineTo(0, 1.28);
+    flagShape.closePath();
+    const flagMesh = new THREE.Mesh(new THREE.ShapeGeometry(flagShape), flagMat);
+    flagMesh.position.set(0.18, 4.6, 0);
+    flagMesh.rotation.y = Math.PI/2;
+    flagMesh.castShadow = true;
+    flagGroup.add(flagMesh);
+    group.add(flagGroup);
+
+    // Small floating spiral hovering just above the edge (4x bigger) — this
+    // is a real pickup: touching it grants the double-jump/float power-up,
+    // clears every spiral in the level, and starts the HUD countdown.
+    const miniSpiral = new THREE.Mesh(springGeo, springMat);
+    miniSpiral.scale.setScalar(1.36);
+    const spiralBaseY = topY + 3.4;
+    miniSpiral.position.set(-edgeW, spiralBaseY, -edgeD);
+    miniSpiral.castShadow = true;
+    group.add(miniSpiral);
+    springPickups.push({mesh: miniSpiral, baseY: spiralBaseY, bob: Math.random()*Math.PI*2, collected:false, checkpointIdx: idx});
+  }
+
+  if(idx===totalPlatforms-1){
+    const topY = collider.top - pos.y;
+    // Golden pedestal
+    const baseMat = new THREE.MeshStandardMaterial({color:0xFFD700, metalness:0.4, roughness:0.3, emissive:0xFFD700, emissiveIntensity:0.35});
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 4.2, 0.6, 24), baseMat);
+    ped.position.y = topY + 0.3;
+    ped.castShadow=true; ped.receiveShadow=true;
+    group.add(ped);
+
+    // Trophy cup
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 0.5, 2.2, 16), baseMat);
+    cup.position.y = topY + 1.7;
+    cup.castShadow=true;
+    group.add(cup);
+    group.userData.trophy = cup;
+
+    // Trophy handles
+    for(const side of [-1, 1]){
+      const handle = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.12, 8, 12, Math.PI), baseMat);
+      handle.position.set(side*1.1, topY + 1.8, 0);
+      handle.rotation.y = Math.PI/2;
+      handle.rotation.z = side * Math.PI/2;
+      group.add(handle);
+    }
+
+    // Star on top
+    const starMat = new THREE.MeshStandardMaterial({color:0xfff59d, emissive:0xffeb3b, emissiveIntensity:1.2, metalness:0.3});
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 0), starMat);
+    star.position.y = topY + 3.2;
+    group.add(star);
+    group.userData.star = star;
+
+    // Rotating ring of pillars
+    const pillarRing = new THREE.Group();
+    pillarRing.position.y = topY + 1.5;
+    const pillarMat = new THREE.MeshStandardMaterial({color:0xffeb3b, emissive:0xff9800, emissiveIntensity:0.5});
+    for(let p=0;p<8;p++){
+      const a = (p/8)*Math.PI*2;
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.4, 3, 0.4), pillarMat);
+      pillar.position.set(Math.cos(a)*5.5, 0, Math.sin(a)*5.5);
+      pillarRing.add(pillar);
+    }
+    group.add(pillarRing);
+    group.userData.pillarRing = pillarRing;
+
+    // Glowing halo ring
+    const haloMat = new THREE.MeshStandardMaterial({color:0xffd700, emissive:0xffd700, emissiveIntensity:0.8, transparent:true, opacity:0.7});
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(5, 0.3, 8, 32), haloMat);
+    halo.position.y = topY + 3.5;
+    halo.rotation.x = Math.PI/2;
+    group.add(halo);
+    group.userData.halo = halo;
+
+    // Bright finish light
+    const finishLight = new THREE.PointLight(0xffd700, 4, 30, 2);
+    finishLight.position.set(0, topY + 2.5, 0);
+    group.add(finishLight);
+    group.userData.finishLight = finishLight;
+  }
+
+  // Static (non-moving) platforms never change position/rotation after
+  // this point — freeze their local matrix so the render loop doesn't
+  // recompute it from position/quaternion/scale every single frame for
+  // all ~300+ of them. matrixWorld still cascades normally (and any
+  // animated child mesh — checkpoint rings, spirals, the finish trophy —
+  // keeps auto-updating itself against the parent as usual), so nothing
+  // visually changes; only the redundant recompute is skipped.
+  if(!extra.moving){
+    group.updateMatrix();
+    group.matrixAutoUpdate = false;
+  }
+  scene.add(group);
+  return {group, mesh, collider, index:idx, isCheckpoint, pos:pos.clone()};
+}
+
+function extentAlong(type, size, rotY, dirAngle){
+  if(type==='cylinder') return size.radius;
+  const hx = (type==='cube') ? size.w/2 : size.length/2;
+  const hz = (type==='cube') ? size.d/2 : size.w/2;
+  const t = dirAngle - rotY;
+  return Math.abs(hx*Math.cos(t)) + Math.abs(hz*Math.sin(t));
+}
+
+// ── SPIRAL GENERATION ──
+const platformObjs = [];
+const radiusTargets = [30, 42, 55, 68, 82, 97, 113];
+const gapByTier     = [[3.0, 4.2], [3.6, 5.0], [4.2, 5.6], [4.8, 6.2], [5.2, 6.8], [5.6, 7.2], [6.0, 7.6]];
+const safetyByTier  = [0.52, 0.58, 0.64, 0.70, 0.75, 0.79, 0.82];
+
+let lastPos  = new THREE.Vector3(0,0,0);
+let lastType = 'cube', lastSize = {w:14,h:2.5,d:14}, lastRotY = 0;
+let currAngle = 0, currRadius = radiusTargets[0];
+
+for(let i=0;i<totalPlatforms;i++){
+  const inStage2 = i >= STAGE2_START;
+  const tier = inStage2 ? 6 : Math.min(numTiers-1, Math.floor(i / perTier));
+
+  if(i===0){
+    const obj = makePlatformMesh('cube',{w:14,h:2.5,d:14}, new THREE.Vector3(0,0,0), 0, 0, 0);
+    platformObjs.push(obj); platforms.push(obj.collider);
+    lastPos.set(0,0,0);
+    lastType='cube'; lastSize={w:14,h:2.5,d:14}; lastRotY=0;
+    currAngle=0; currRadius=radiusTargets[0];
+    continue;
+  }
+
+  // ── STAGE 2: NIGHT SKY FLIGHT RUN ──────────────────────────────
+  // Inspired by common Roblox obby mechanics found in current obby guides:
+  // moving platforms, disappearing platforms, bounce pads, narrow sky bridges,
+  // bounce-island chains, and flight shortcuts — combined into an original layout.
+  if(inStage2){
+    const j = i - STAGE2_START;
+    const angleStep = 0.30 + Math.sin(j*0.31)*0.035;
+    currAngle += angleStep;
+    const stageRadius = 42 + Math.sin(j*0.22)*10 + j*0.075;
+    const nx2 = Math.cos(currAngle)*stageRadius;
+    const nz2 = Math.sin(currAngle)*stageRadius;
+    const prev2 = lastPos;
+    const dir2 = new THREE.Vector2(nx2-prev2.x, nz2-prev2.z);
+    if(dir2.lengthSq()<0.001) dir2.set(1,0); else dir2.normalize();
+    const dy2 = 0.55 + (j%7===0 ? 0.25 : 0.12);
+    const ny2 = prev2.y + dy2;
+    let type2 = 'cube';
+    let size2 = {w:7.2,h:1.25,d:7.2};
+    let rot2 = Math.atan2(dir2.y,dir2.x);
+    const extra2 = {};
+
+    if(j===0){
+      size2 = {w:18,h:2.2,d:18};
+    }else if(j%13===3 || j%13===9){
+      type2 = 'beam'; size2 = {length:8.5,w:1.8,h:1.15};
+      extra2.disappearing = {period:15.0, visibleTime:13.6, phase:j*0.37};
+    }else if(j%13===5){
+      type2 = 'cylinder'; size2 = {radius:3.4,h:1.25};
+      extra2.bounce = true;
+    }else if(j%13===7 || j%13===11){
+      size2 = {w:6.4,h:1.2,d:6.4};
+      extra2.moving = {
+        dir: new THREE.Vector2(-dir2.y, dir2.x),
+        amplitude: 5.5 + (j%3)*1.5,
+        speed: 0.9 + (j%4)*0.12,
+        phase: j*0.8
+      };
+    }else if(j%13===1){
+      size2 = {w:5.8,h:1.15,d:5.8};
+      extra2.moving = {
+        dir: dir2.clone(),
+        amplitude: 4.0,
+        speed: 0.75,
+        phase: j*0.6
+      };
+    }else if(j%17===4 || j%17===12){
+      // New Level 2 idea: narrow alternating "sky bridge" sections.
+      type2 = 'beam';
+      size2 = {length:10.5,w:1.35,h:0.9};
+      rot2 = dir2.x || dir2.y ? Math.atan2(dir2.y,dir2.x) + (j%34===4 ? 0.34 : -0.34) : rot2;
+      if(j%17===12){
+        extra2.disappearing = {period:12.0, visibleTime:10.8, phase:j*0.21};
+      }
+    }else if(j%19===8){
+      // New idea: bounce island chain — land, launch, land again.
+      type2 = 'cylinder';
+      size2 = {radius:2.7,h:1.15};
+      extra2.bounce = true;
+    }
+
+    const obj2 = makePlatformMesh(type2,size2,new THREE.Vector3(nx2,ny2,nz2),rot2,6,i,extra2);
+    platformObjs.push(obj2); platforms.push(obj2.collider);
+    lastPos.set(nx2,ny2,nz2);
+    lastType=type2; lastSize=size2; lastRotY=rot2;
+    currRadius=stageRadius; currAngle=currAngle;
+
+    if(i===STAGE2_START || i===STAGE2_START+24 || i===STAGE2_START+49 || i===STAGE2_START+74 || i===STAGE2_START+99 || i===STAGE2_START+124){
+      checkpointIndices.add(i);
+      obj2.isCheckpoint = true;
+    }
+    if(i===STAGE2_END){
+      obj2.group.userData.stage2Finish = true;
+    }
+    continue;
+  }
+
+  // ── STAGE 1 REDESIGNED: SKY SUMMIT ADVENTURE ─────────────────────
+  // Short starter connector: the big starting square now has a small,
+  // actually traversable stepping section leading toward the first distant
+  // block. This fills the visible gap without making the opening too long.
+  if(i>=1 && i<=4){
+    const starter = [
+      {x:0,  y:0.55, z:12.0, w:6.4, d:5.4, rot:0},
+      {x:1.8,y:1.10, z:20.0, w:5.6, d:5.0, rot:-0.10},
+      {x:-1.4,y:1.72, z:27.4, w:5.0, d:4.8, rot:0.14},
+      {x:1.6,y:2.35, z:34.6, w:5.8, d:5.2, rot:-0.12}
+    ][i-1];
+    const extraStarter = {};
+    if(i===3) extraStarter.moving={
+      dir:new THREE.Vector2(1,0), amplitude:1.5, speed:0.45, phase:0.7
+    };
+    const objStarter = makePlatformMesh(
+      'cube',
+      {w:starter.w,h:1.05,d:starter.d},
+      new THREE.Vector3(starter.x,starter.y,starter.z),
+      starter.rot, 0, i, extraStarter
+    );
+    platformObjs.push(objStarter); platforms.push(objStarter.collider);
+    lastPos.set(starter.x,starter.y,starter.z);
+    lastType='cube'; lastSize={w:starter.w,h:1.05,d:starter.d}; lastRotY=starter.rot;
+    currRadius=Math.hypot(starter.x,starter.z);
+    currAngle=Math.atan2(starter.z,starter.x);
+    continue;
+  }
+
+  // ── STAGE 1 FINAL CONNECTOR ────────────────────────────────────
+  // The last part of Stage 1 gets a short, guaranteed traversable
+  // stepping path so the player can reach the finish without needing
+  // the flight shortcut. The existing flight button still lets the
+  // player skip this section if desired.
+  if(i>=314 && i<=319){
+    const step = i-314;
+    const dir = new THREE.Vector2(Math.cos(currAngle), Math.sin(currAngle));
+    // Keep the connector close to the previous platform and gradually
+    // increase the height. The final platform is intentionally large.
+    const forward = [6.0, 6.2, 6.4, 6.6, 6.8, 7.2][step];
+    const side = [0, 1.0, -0.8, 0.8, -0.5, 0][step];
+    const nx = lastPos.x + dir.x*forward + (-dir.y)*side;
+    const nz = lastPos.z + dir.y*forward + dir.x*side;
+    const ny = lastPos.y + (step===5 ? 0.55 : 0.35);
+    const final = step===5;
+    const size = final ? {w:16,h:3.0,d:16} : {w:5.8-step*0.18,h:1.15,d:5.8-step*0.18};
+    const rot = Math.atan2(dir.y,dir.x);
+    const objFinal = makePlatformMesh('cube',size,new THREE.Vector3(nx,ny,nz),rot,5,i,{},);
+    platformObjs.push(objFinal); platforms.push(objFinal.collider);
+    lastPos.set(nx,ny,nz);
+    lastType='cube'; lastSize=size; lastRotY=rot;
+    currRadius=Math.hypot(nx,nz);
+    currAngle=Math.atan2(nz,nx);
+    if(final) objFinal.group.userData.stage1Finish=true;
+    continue;
+  }
+
+  // Six intentional zones: warm-up, zig-zag, beams, moving islands,
+  // bounce canyon, then the final summit approach.
+  const zone = Math.min(5, Math.floor((i-1) / 53));
+  const stage1Tier = zone;
+  const rise = 0.55 + zone*0.23 + Math.sin(i*0.41)*0.16 + Math.random()*0.28;
+  const dy = Math.min(Math.max(0.35, rise), JUMP_PEAK - 1.25);
+
+  const safeRange = jumpRange(dy) * safetyByTier[stage1Tier];
+  const [gMin, gMax] = gapByTier[stage1Tier];
+  let gap = gMin + Math.random()*(gMax-gMin);
+  gap = Math.min(gap, safeRange - 0.6);
+  gap = Math.max(gap, 2.4);
+
+  const tangent = new THREE.Vector2(-Math.sin(currAngle), Math.cos(currAngle));
+  const outward = new THREE.Vector2(Math.cos(currAngle), Math.sin(currAngle));
+  const drift = THREE.MathUtils.clamp((radiusTargets[tier]-currRadius)*0.12, -0.35, 0.35);
+  const dirV = tangent.clone().addScaledVector(outward, drift).normalize();
+  const dirAngle = Math.atan2(dirV.y, dirV.x);
+
+  const roll = Math.random();
+  let type;
+  if(zone===0) type = roll<0.72 ? 'cube' : roll<0.90 ? 'cylinder' : 'ramp';
+  else if(zone===1) type = roll<0.38 ? 'cube' : roll<0.58 ? 'cylinder' : roll<0.82 ? 'beam' : 'ramp';
+  else if(zone===2) type = roll<0.18 ? 'cube' : roll<0.34 ? 'cylinder' : roll<0.78 ? 'beam' : 'ramp';
+  else if(zone===3) type = roll<0.25 ? 'cube' : roll<0.42 ? 'cylinder' : roll<0.82 ? 'beam' : 'ramp';
+  else type = roll<0.16 ? 'cube' : roll<0.34 ? 'cylinder' : roll<0.82 ? 'beam' : 'ramp';
+
+  let size;
+  if(type==='cube'){
+    const base=Math.max(3.8,7.8-zone*0.55);
+    size={w:base+Math.random()*1.8,h:1.05+Math.random()*0.65,d:base+Math.random()*1.8};
+  } else if(type==='cylinder'){
+    const rad=Math.max(1.75,3.4-zone*0.28)+Math.random()*0.65;
+    size={radius:rad,h:1.0+Math.random()*0.55};
+  } else if(type==='beam'){
+    size={length:Math.max(5.8,9.5-zone*0.45)+Math.random()*2.2,
+          w:Math.max(0.9,1.75-zone*0.12)+Math.random()*0.5,h:0.7+Math.random()*0.4};
+  } else {
+    const L=Math.max(5.0,7.2-zone*0.28)+Math.random()*1.8;
+    size={length:L,w:2.6+Math.random()*1.3,h:0.9+Math.random()*0.75+zone*0.16};
+  }
+
+  let rotY;
+  if(type==='beam')      rotY = dirAngle + Math.PI/2 + (Math.random()-0.5)*0.25;
+  else if(type==='ramp') rotY = dirAngle;
+  // Cube/cylinder used to get a fully random spin (Math.random()*TAU), which
+  // made the course look messy even though sizes/gaps were carefully
+  // calculated. Aligning them to the path direction (like beam/ramp already
+  // do) makes the layout read as intentional while leaving every size
+  // untouched.
+  else                    rotY = dirAngle;
+
+  const centerDist = extentAlong(lastType, lastSize, lastRotY, dirAngle) + gap + extentAlong(type, size, rotY, dirAngle);
+  const nx = lastPos.x + dirV.x*centerDist;
+  const nz = lastPos.z + dirV.y*centerDist;
+  const ny = lastPos.y + dy;
+
+  // Special mechanics only roll on ordinary platforms — never the spawn pad,
+  // the finish trophy platform, or a checkpoint (those must always be safe).
+  const isSpecial = i!==0 && i!==totalPlatforms-1 && !checkpointIndices.has(i);
+  const extra = {};
+
+  // ── MOVING PLATFORM — slides back and forth along a random horizontal axis ──
+  if(isSpecial && zone>=2 && (type==='cube'||type==='cylinder'||type==='beam') && Math.random() < (zone>=4?0.19:0.14)){
+    const moveAngle=Math.random()*Math.PI*2;
+    extra.moving={dir:new THREE.Vector2(Math.cos(moveAngle),Math.sin(moveAngle)),
+      amplitude:2.0+Math.random()*3.0,speed:0.42+Math.random()*0.55,phase:Math.random()*Math.PI*2};
+  } else if(isSpecial && zone>=3 && type==='cylinder' && Math.random() < (zone>=4?0.18:0.12)){
+    extra.bounce=true;
+  } else if(isSpecial && zone>=2 && type==='beam' && Math.random()<0.18){
+    const vt = 12.4+Math.random()*4.4;      // visible time (doubled again per request)
+    const iv = 1.2+Math.random()*0.4;       // invisible time — short & fast
+    extra.disappearing={period:vt+iv,visibleTime:vt,phase:Math.random()*3};
+  }
+
+  // Final platform is always a big trophy/winner platform
+  let finalType = type, finalSize = size, finalRotY = rotY;
+  if(i === totalPlatforms-1){
+    finalType = 'cube';
+    finalSize = {w: 16, h: 3.0, d: 16};
+    finalRotY = 0;
+  }
+  const obj = makePlatformMesh(finalType, finalSize, new THREE.Vector3(nx, ny, nz), finalRotY, tier, i, extra);
+  platformObjs.push(obj); platforms.push(obj.collider);
+
+  lastPos.set(nx, ny, nz);
+  lastType = type; lastSize = size; lastRotY = rotY;
+  currRadius = Math.hypot(nx, nz);
+  currAngle  = Math.atan2(nz, nx);
+}
+
+// ── SURFACE QUERY ──
+function getTopAt(x,z, col){
+  // Landing uses the REAL visible platform footprint, edge to edge — no
+  // inward inset. An inset here shrinks the solid area below the visible
+  // block, which is exactly what let players fall through near edges.
+  const EDGE_INSET = 0;
+  if(col.type==='cylinder'){
+    const dx = x - col.pos.x, dz = z - col.pos.z;
+    return (Math.hypot(dx,dz) <= Math.max(0.05, col.radius - EDGE_INSET)) ? col.top : null;
+  }
+  if(col.isRamp){
+    const dir = col.ramp.dir, low = col.ramp.lowPos;
+    const vx = x - low.x, vz = z - low.z;
+    const proj = vx*dir.x + vz*dir.y;
+    if(proj < EDGE_INSET || proj > col.ramp.length-EDGE_INSET) return null;
+    if(Math.abs(vx*(-dir.y) + vz*dir.x) > Math.max(0.05, col.ramp.W/2-EDGE_INSET)) return null;
+    return col.ramp.baseY + THREE.MathUtils.clamp(proj/col.ramp.length,0,1)*col.ramp.height;
+  }
+  const cosR = Math.cos(-col.rotY), sinR = Math.sin(-col.rotY);
+  const dx = x - col.pos.x, dz = z - col.pos.z;
+  const lx = dx*cosR - dz*sinR, lz = dx*sinR + dz*cosR;
+  const halfW = Math.max(0.05, col.halfW - EDGE_INSET);
+  const halfD = Math.max(0.05, col.halfD - EDGE_INSET);
+  return (Math.abs(lx) <= halfW && Math.abs(lz) <= halfD) ? col.top : null;
+}
+
+/**
+ * Land detector: only triggers when the player actually CROSSES the
+ * platform surface from above in a single physics substep.
+ * Also allows small ledge steps while grounded.
+ */
+function resolveLand(x, z, prevY, newY, grounded, vy){
+  let bestTop = -Infinity, bestIdx = -1;
+  const falling = vy <= 0;
+
+  const candidates = queryCollisionGrid(x, z);
+  for(let n=0;n<candidates.length;n++){
+    const i = candidates[n];
+    const col = platforms[i];
+    if(col.active === false) continue;
+    // Use the platform's LOWEST point (col.bottom) for the "too high to reach"
+    // reject, not its top. A ramp's peak can be far above the player while its
+    // thin/low edge is right at foot level — using col.top here was wrongly
+    // excluding ramps' thin ends from landing checks, letting players fall
+    // straight through them.
+    if(col.bottom > prevY + STEP_UP + 0.15) continue;
+    if(col.top < newY  - STEP_DOWN - 0.15) continue;
+    const top = getTopAt(x, z, col);
+    if(top === null) continue;
+
+    let hit = false;
+    if(falling){
+      // swept: crossed the plane this tick
+      if(prevY >= top - SKIN && newY <= top + SKIN) hit = true;
+      // OR we're close enough to snap (within step-down tolerance)
+      else if(grounded && newY <= top + SKIN && newY >= top - STEP_DOWN) hit = true;
+    } else {
+      // stepping up from a lower ledge while grounded
+      if(grounded && top <= newY + STEP_UP && top >= newY - SKIN) hit = true;
+    }
+    if(hit && top > bestTop){ bestTop = top; bestIdx = i; }
+  }
+  return bestIdx >= 0 ? {top:bestTop, idx:bestIdx} : null;
+}
+
+// ── SKINS ──
+const SKINS = [
+  { name:'Classic Noob',  head:0xffe135, torso:0x00a2ff, arms:0xffe135, legs:0x3cb43c, jet:0xff3b30 },
+  { name:'Red Ninja',     head:0xeceff1, torso:0xd32f2f, arms:0xb71c1c, legs:0x212121, jet:0xb71c1c },
+  { name:'Cyber Robot',   head:0xb3e5fc, torso:0x37474f, arms:0x90a4ae, legs:0x263238, jet:0x00e5ff, emissive:0x00e5ff },
+  { name:'Golden Knight', head:0xfff8e1, torso:0xffd700, arms:0xffc107, legs:0x8d6e63, jet:0xffc107 },
+  { name:'Galaxy Astro',  head:0xffffff, torso:0x5c6bc0, arms:0x3949ab, legs:0x1a237e, jet:0x7c4dff, emissive:0x5c6bc0 },
+];
+let currentSkin = 0;
+// All skins are unlocked and free to pick from the start.
+let unlockedSkins = new Set(SKINS.map((_,i)=>i));
+
+// ── AVATAR RIG (feet at local y = 0) ──
+const avatar   = new THREE.Group();
+const bodyRoot = new THREE.Group();
+avatar.add(bodyRoot);
+const upperRoot = new THREE.Group();
+bodyRoot.add(upperRoot);
+
+// Skinnable body materials (recolored instantly by applySkin)
+let matHead, matTorso, matArm, matLeg;
+function buildAvatarMaterials(s){
+  matHead  = new THREE.MeshStandardMaterial({color:s.head,  roughness:0.7});
+  matTorso = new THREE.MeshStandardMaterial({color:s.torso, roughness:0.7});
+  matArm   = new THREE.MeshStandardMaterial({color:s.arms,  roughness:0.7});
+  matLeg   = new THREE.MeshStandardMaterial({color:s.legs,  roughness:0.8});
+}
+buildAvatarMaterials(SKINS[0]);
+
+// Torso (with a subtle chest block for definition)
+const torso = new THREE.Mesh(new THREE.BoxGeometry(TORSO_W, TORSO_H, TORSO_D), matTorso);
+torso.position.y = HIP_Y + TORSO_H/2;
+torso.castShadow=true; torso.receiveShadow=true;
+upperRoot.add(torso);
+
+// Head
+const head = new THREE.Mesh(new THREE.BoxGeometry(HEAD_S, HEAD_S, HEAD_S), matHead);
+head.position.y = HEAD_Y;
+head.castShadow=true; head.receiveShadow=true;
+upperRoot.add(head);
+
+// Face decal
+const faceCanvas = document.createElement('canvas'); faceCanvas.width=128; faceCanvas.height=128;
+const fctx = faceCanvas.getContext('2d');
+fctx.fillStyle='#ffe135'; fctx.fillRect(0,0,128,128);
+fctx.fillStyle='#000'; fctx.beginPath(); fctx.arc(38,48,8,0,Math.PI*2); fctx.fill(); fctx.beginPath(); fctx.arc(90,48,8,0,Math.PI*2); fctx.fill();
+fctx.strokeStyle='#000'; fctx.lineWidth=6; fctx.beginPath(); fctx.arc(64,84,28,0.15,Math.PI-0.15); fctx.stroke();
+const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(HEAD_S*0.82, HEAD_S*0.82), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(faceCanvas)}));
+facePlane.position.set(0, 0, HEAD_S/2 + 0.02);
+head.add(facePlane);
+
+function makeArm(sign){
+  const shoulder = new THREE.Group();
+  shoulder.position.set(sign*ARM_SHOULDER_OFFSET, SHOULDER_Y, 0);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(ARM_W, ARM_LEN, ARM_W), matArm);
+  m.position.y = -ARM_LEN/2;
+  m.castShadow=true; m.receiveShadow=true;
+  shoulder.add(m);
+  upperRoot.add(shoulder);
+  return shoulder;
+}
+const armL = makeArm(-1);
+const armR = makeArm( 1);
+
+function makeLeg(sign){
+  const hip = new THREE.Group();
+  hip.position.set(sign*LEG_SPLIT, HIP_Y, 0);
+
+  const thigh = new THREE.Mesh(new THREE.BoxGeometry(LEG_W, THIGH_LEN, LEG_W), matLeg);
+  thigh.position.y = -THIGH_LEN/2;
+  thigh.castShadow=true; thigh.receiveShadow=true;
+  hip.add(thigh);
+
+  const knee = new THREE.Group();
+  knee.position.y = -THIGH_LEN;
+  hip.add(knee);
+
+  const shin = new THREE.Mesh(new THREE.BoxGeometry(LEG_W*0.97, SHIN_LEN, LEG_W*0.97), matLeg);
+  shin.position.y = -SHIN_LEN/2;
+  shin.castShadow=true; shin.receiveShadow=true;
+  knee.add(shin);
+
+  bodyRoot.add(hip);
+  return {hip, knee};
+}
+const legL = makeLeg(-1);
+const legR = makeLeg( 1);
+
+scene.add(avatar);
+
+/* ══════════════════════════════════════════════════════════════
+   PER-SKIN ACCESSORIES — extra geometry that only shows up for a
+   specific skin (headbands, swords, armor plates, helmets…) so
+   each skin actually reads as a distinct character, not just a
+   recolor. Everything starts hidden; applySkin() toggles the set
+   that belongs to the active skin.
+   ══════════════════════════════════════════════════════════════ */
+const skinAccessories = {}; // { skinIndex: THREE.Object3D[] }
+function addAcc(skinIdx, obj){
+  (skinAccessories[skinIdx] ||= []).push(obj);
+  obj.visible = false;
+  obj.traverse?.(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+}
+
+const darkMat  = new THREE.MeshStandardMaterial({color:0x1a1a1a, roughness:0.6});
+const steelMat = new THREE.MeshStandardMaterial({color:0xcfd8dc, roughness:0.35, metalness:0.7});
+
+/* ── Skin 1: RED NINJA — headband+tails, face mask, back sword,
+   dark wrist/ankle wraps and belt (matches the red ninja reference) ── */
+{
+  const g = new THREE.Group();
+  const bandMat = new THREE.MeshStandardMaterial({color:0xb71c1c, roughness:0.55});
+  const band = new THREE.Mesh(new THREE.BoxGeometry(HEAD_S*1.05, HEAD_S*0.20, HEAD_S*1.05), bandMat);
+  band.position.set(0, HEAD_Y + HEAD_S*0.06, 0);
+  g.add(band);
+  for(const side of [-1,1]){
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(HEAD_S*0.16, HEAD_S*0.45, HEAD_S*0.05), bandMat);
+    tail.position.set(side*HEAD_S*0.30, HEAD_Y - HEAD_S*0.25, -HEAD_S*0.56);
+    tail.rotation.x = -0.35;
+    tail.rotation.z = side*0.18;
+    g.add(tail);
+  }
+  // cloth mask covering the nose/mouth — sits just in front of the head so it's not hidden inside it
+  const mask = new THREE.Mesh(new THREE.BoxGeometry(HEAD_S*0.94, HEAD_S*0.42, HEAD_S*0.14), darkMat);
+  mask.position.set(0, HEAD_Y - HEAD_S*0.16, HEAD_S*0.56);
+  g.add(mask);
+  const maskStrapL = new THREE.Mesh(new THREE.BoxGeometry(HEAD_S*0.10, HEAD_S*0.10, HEAD_S*0.62), darkMat);
+  maskStrapL.position.set(-HEAD_S*0.52, HEAD_Y - HEAD_S*0.12, HEAD_S*0.10);
+  g.add(maskStrapL);
+  const maskStrapR = maskStrapL.clone();
+  maskStrapR.position.x *= -1;
+  g.add(maskStrapR);
+  // waist belt
+  const belt = new THREE.Mesh(new THREE.BoxGeometry(TORSO_W*1.04, TORSO_H*0.14, TORSO_D*1.04), darkMat);
+  belt.position.set(0, HIP_Y + TORSO_H*0.06, 0);
+  g.add(belt);
+  // sword strapped diagonally across the back, hilt peeking over the right shoulder
+  const swordGrp = new THREE.Group();
+  swordGrp.position.set(ARM_SHOULDER_OFFSET*0.32, SHOULDER_Y - TORSO_H*0.10, -TORSO_D*0.62);
+  swordGrp.rotation.z = 0.62;
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.16, TORSO_H*1.35, 0.045), steelMat);
+  blade.position.y = TORSO_H*0.45;
+  swordGrp.add(blade);
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.10, 0.10), darkMat);
+  guard.position.y = -0.20;
+  swordGrp.add(guard);
+  const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.42,8), darkMat);
+  hilt.position.y = -0.46;
+  swordGrp.add(hilt);
+  g.add(swordGrp);
+  // wraparound tunic (jalabiya-style robe) covering the torso down to the hips, with a flared hem
+  const robeMat = new THREE.MeshStandardMaterial({color:0xc62828, roughness:0.65});
+  const tunicBody = new THREE.Mesh(new THREE.BoxGeometry(TORSO_W*1.18, (SHOULDER_Y-HIP_Y)+TORSO_H*0.30, TORSO_D*1.18), robeMat);
+  tunicBody.position.set(0, (SHOULDER_Y+HIP_Y)/2, 0);
+  g.add(tunicBody);
+  const tunicHem = new THREE.Mesh(new THREE.BoxGeometry(TORSO_W*1.40, TORSO_H*0.34, TORSO_D*1.40), robeMat);
+  tunicHem.position.set(0, HIP_Y - TORSO_H*0.14, 0);
+  g.add(tunicHem);
+  upperRoot.add(g);
+  addAcc(1, g);
+  // dark wrist wraps + tabi boots, parented to the limbs so they move with the walk cycle
+  for(const arm of [armL, armR]){
+    const wrist = new THREE.Mesh(new THREE.BoxGeometry(ARM_W*1.12, ARM_W*0.45, ARM_W*1.12), darkMat);
+    wrist.position.set(0, -ARM_LEN*0.90, 0);
+    addAcc(1, wrist); arm.add(wrist);
+  }
+  for(const leg of [legL, legR]){
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(LEG_W*1.06, SHIN_LEN*0.34, LEG_W*1.14), darkMat);
+    boot.position.set(0, -SHIN_LEN*0.83, LEG_W*0.06);
+    addAcc(1, boot); leg.knee.add(boot);
+  }
+}
+
+/* ── Skin 2: CYBER ROBOT — glowing visor, neck collar, segmented chest
+   core, big pauldrons, waist joint band, knee lights ── */
+{
+  const g = new THREE.Group();
+  const glowMat = new THREE.MeshBasicMaterial({color:0x00e5ff});
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(HEAD_S*0.86, HEAD_S*0.16, 0.06), glowMat);
+  visor.position.set(0, HEAD_Y + HEAD_S*0.06, HEAD_S/2 + 0.03);
+  g.add(visor);
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(HEAD_S*0.42, HEAD_S*0.46, HEAD_S*0.22, 12), darkMat);
+  collar.position.set(0, HEAD_Y - HEAD_S*0.62, 0);
+  g.add(collar);
+  for(const side of [-1,1]){
+    const sensor = new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.05,10), glowMat);
+    sensor.rotation.z = Math.PI/2;
+    sensor.position.set(side*(HEAD_S/2+0.02), HEAD_Y + HEAD_S*0.10, 0);
+    g.add(sensor);
+  }
+  const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(TORSO_W*0.72, TORSO_H*0.52, 0.10), steelMat);
+  chestPlate.position.set(0, SHOULDER_Y - TORSO_H*0.34, TORSO_D/2 + 0.02);
+  g.add(chestPlate);
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,0.10,16), glowMat);
+  core.rotation.x = Math.PI/2;
+  core.position.set(0, SHOULDER_Y - TORSO_H*0.34, TORSO_D/2 + 0.09);
+  g.add(core);
+  const waistBand = new THREE.Mesh(new THREE.BoxGeometry(TORSO_W*1.02, TORSO_H*0.12, TORSO_D*1.02), darkMat);
+  waistBand.position.set(0, HIP_Y + TORSO_H*0.05, 0);
+  g.add(waistBand);
+  for(const side of [-1,1]){
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(ARM_W*1.5, 0.38, ARM_W*1.5), steelMat);
+    plate.position.set(side*ARM_SHOULDER_OFFSET, SHOULDER_Y + 0.20, 0);
+    g.add(plate);
+  }
+  upperRoot.add(g);
+  addAcc(2, g);
+  for(const arm of [armL, armR]){
+    const elbow = new THREE.Mesh(new THREE.TorusGeometry(ARM_W*0.58, 0.035, 6, 14), glowMat);
+    elbow.rotation.x = Math.PI/2;
+    elbow.position.set(0, -ARM_LEN*0.52, 0);
+    addAcc(2, elbow); arm.add(elbow);
+  }
+  for(const leg of [legL, legR]){
+    const kneeLight = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.05,10), glowMat);
+    kneeLight.rotation.x = Math.PI/2;
+    kneeLight.position.set(0, -0.06, LEG_W/2 + 0.02);
+    addAcc(2, kneeLight); leg.knee.add(kneeLight);
+  }
+}
+
+/* ── Skin 3: GOLDEN KNIGHT — crested helm, pauldrons, leather tassets,
+   belt, held sword + shield, gemmed knee guards ── */
+{
+  const g = new THREE.Group();
+  const goldMat   = new THREE.MeshStandardMaterial({color:0xffc107, roughness:0.35, metalness:0.75});
+  const leatherMat= new THREE.MeshStandardMaterial({color:0x8d6e63, roughness:0.75});
+  const crownGem = new THREE.MeshStandardMaterial({color:0xd32f2f, roughness:0.35, metalness:0.2});
+  const crownY = HEAD_Y + HEAD_S*0.40;
+  const spikeGeo = new THREE.ConeGeometry(HEAD_S*0.09, HEAD_S*0.34, 4);
+  const off = HEAD_S*0.42;
+  const spikePositions = [[0,off],[off,0],[-off,0],[0,-off],[off*0.7,off*0.7],[-off*0.7,off*0.7]];
+  for(const [x,z] of spikePositions){
+    const spike = new THREE.Mesh(spikeGeo, goldMat);
+    spike.position.set(x, crownY + HEAD_S*0.17, z);
+    spike.rotation.y = Math.PI/4;
+    g.add(spike);
+  }
+  const gem = new THREE.Mesh(new THREE.SphereGeometry(HEAD_S*0.10, 10, 8), crownGem);
+  gem.position.set(0, crownY, HEAD_S*0.5 + 0.02);
+  g.add(gem);
+  const brow = new THREE.Mesh(new THREE.BoxGeometry(HEAD_S*1.06, HEAD_S*0.18, HEAD_S*1.06), goldMat);
+  brow.position.set(0, HEAD_Y + HEAD_S*0.30, 0);
+  g.add(brow);
+  const visorSlit = new THREE.Mesh(new THREE.BoxGeometry(HEAD_S*0.66, HEAD_S*0.10, 0.06), darkMat);
+  visorSlit.position.set(0, HEAD_Y + HEAD_S*0.02, HEAD_S/2+0.02);
+  g.add(visorSlit);
+  for(const side of [-1,1]){
+    const pauldron = new THREE.Mesh(new THREE.BoxGeometry(ARM_W*1.45, 0.40, ARM_W*1.45), goldMat);
+    pauldron.position.set(side*ARM_SHOULDER_OFFSET, SHOULDER_Y + 0.20, 0);
+    g.add(pauldron);
+  }
+  // leather tassets hanging below the breastplate
+  const tassets = new THREE.Mesh(new THREE.BoxGeometry(TORSO_W*0.95, TORSO_H*0.30, TORSO_D*1.06), leatherMat);
+  tassets.position.set(0, HIP_Y + TORSO_H*0.12, 0);
+  g.add(tassets);
+  const beltGem = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.06,10), new THREE.MeshStandardMaterial({color:0xb71c1c, roughness:0.4}));
+  beltGem.rotation.x = Math.PI/2;
+  beltGem.position.set(0, HIP_Y + TORSO_H*0.22, TORSO_D/2+0.04);
+  g.add(beltGem);
+  upperRoot.add(g);
+  addAcc(3, g);
+  // sword held in the right hand, tip pointing down
+  const swordGrp = new THREE.Group();
+  swordGrp.position.set(0, -ARM_LEN*0.92, ARM_W*0.55);
+  swordGrp.rotation.x = -0.12;
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.05, 0.05), steelMat);
+  blade.position.y = -0.55;
+  swordGrp.add(blade);
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.09, 0.09), goldMat);
+  swordGrp.add(guard);
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.30,8), darkMat);
+  grip.position.y = 0.20;
+  swordGrp.add(grip);
+  addAcc(3, swordGrp); armR.add(swordGrp);
+  // kite shield held in the left hand, angled to face forward like a raised guard
+  const shield = new THREE.Mesh(new THREE.BoxGeometry(0.10, 1.15, 0.78), goldMat);
+  shield.position.set(0, -ARM_LEN*0.78, ARM_W*0.70);
+  shield.rotation.y = 0.18;
+  const shieldRim = new THREE.Mesh(new THREE.BoxGeometry(0.03, 1.15, 0.78), new THREE.MeshStandardMaterial({color:0xb71c1c, roughness:0.5}));
+  shieldRim.position.copy(shield.position); shieldRim.rotation.y = shield.rotation.y;
+  shieldRim.translateX(0.065);
+  addAcc(3, shield); addAcc(3, shieldRim);
+  armL.add(shield); armL.add(shieldRim);
+  // gemmed knee guards
+  for(const leg of [legL, legR]){
+    const guardKnee = new THREE.Mesh(new THREE.CylinderGeometry(LEG_W*0.32,LEG_W*0.32,0.10,12), goldMat);
+    guardKnee.rotation.x = Math.PI/2;
+    guardKnee.position.set(0, -0.05, LEG_W/2+0.02);
+    addAcc(3, guardKnee); leg.knee.add(guardKnee);
+  }
+}
+
+/* ── Skin 4: GALAXY ASTRO — reflective glass dome, rim, antenna,
+   chest control panel, and lighter suit cuffs at wrists/ankles ── */
+{
+  const g = new THREE.Group();
+  const glassMat = new THREE.MeshStandardMaterial({color:0x80deea, roughness:0.08, metalness:0.1, transparent:true, opacity:0.35});
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(HEAD_S*0.80, 22, 18), glassMat);
+  dome.position.set(0, HEAD_Y, 0);
+  g.add(dome);
+  const highlight = new THREE.Mesh(new THREE.SphereGeometry(HEAD_S*0.20, 12, 10), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.55}));
+  highlight.position.set(-HEAD_S*0.32, HEAD_Y + HEAD_S*0.30, HEAD_S*0.45);
+  g.add(highlight);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(HEAD_S*0.62, 0.07, 8, 20), steelMat);
+  rim.rotation.x = Math.PI/2;
+  rim.position.set(0, HEAD_Y - HEAD_S*0.14, 0);
+  g.add(rim);
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.55,6), steelMat);
+  antenna.position.set(HEAD_S*0.30, HEAD_Y + HEAD_S*0.75, 0);
+  g.add(antenna);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.06,8,8), new THREE.MeshBasicMaterial({color:0xff5252}));
+  bulb.position.set(HEAD_S*0.30, HEAD_Y + HEAD_S*0.75 + 0.28, 0);
+  g.add(bulb);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.42, 0.07), steelMat);
+  panel.position.set(0, SHOULDER_Y - TORSO_H*0.45, TORSO_D/2 + 0.035);
+  g.add(panel);
+  const panelLight = new THREE.Mesh(new THREE.CircleGeometry(0.08,12), new THREE.MeshBasicMaterial({color:0x7c4dff}));
+  panelLight.position.set(-0.10, SHOULDER_Y - TORSO_H*0.45, TORSO_D/2 + 0.075);
+  g.add(panelLight);
+  const panelLight2 = new THREE.Mesh(new THREE.CircleGeometry(0.05,12), new THREE.MeshBasicMaterial({color:0xffca28}));
+  panelLight2.position.set(0.14, SHOULDER_Y - TORSO_H*0.45, TORSO_D/2 + 0.075);
+  g.add(panelLight2);
+  // crossed backpack straps over the chest
+  const strapMat = new THREE.MeshStandardMaterial({color:0x37474f, roughness:0.6});
+  for(const side of [-1,1]){
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.13, TORSO_H*0.95, 0.05), strapMat);
+    strap.position.set(side*TORSO_W*0.22, SHOULDER_Y - TORSO_H*0.42, TORSO_D/2 + 0.015);
+    strap.rotation.z = side*0.30;
+    g.add(strap);
+  }
+  // small star flecks scattered on the suit for a galaxy-print feel
+  const starMat = new THREE.MeshBasicMaterial({color:0xffffff});
+  const starSpots = [
+    [TORSO_W*0.28, SHOULDER_Y-TORSO_H*0.15, TORSO_D/2+0.02],
+    [-TORSO_W*0.30, SHOULDER_Y-TORSO_H*0.60, TORSO_D/2+0.02],
+    [TORSO_W*0.10, HIP_Y-TORSO_H*0.10, TORSO_D/2+0.02],
+    [-TORSO_W*0.15, SHOULDER_Y-TORSO_H*0.05, -TORSO_D/2-0.02],
+  ];
+  for(const [x,y,z] of starSpots){
+    const star = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), starMat);
+    star.position.set(x,y,z);
+    g.add(star);
+  }
+  upperRoot.add(g);
+  addAcc(4, g);
+  // lighter suit-segment cuffs at wrists and ankles
+  const cuffMat = new THREE.MeshStandardMaterial({color:0xb3c6ff, roughness:0.5});
+  for(const arm of [armL, armR]){
+    const cuff = new THREE.Mesh(new THREE.BoxGeometry(ARM_W*1.14, ARM_W*0.4, ARM_W*1.14), cuffMat);
+    cuff.position.set(0, -ARM_LEN*0.92, 0);
+    addAcc(4, cuff); arm.add(cuff);
+  }
+  for(const leg of [legL, legR]){
+    const cuff = new THREE.Mesh(new THREE.BoxGeometry(LEG_W*1.08, SHIN_LEN*0.26, LEG_W*1.08), cuffMat);
+    cuff.position.set(0, -SHIN_LEN*0.88, 0);
+    addAcc(4, cuff); leg.knee.add(cuff);
+  }
+}
+
+// Held spiral shown in the player's hand while the power-up is active —
+// grabbed from a checkpoint pickup, visible for the whole buff. Sized and
+// offset well clear of the arm mesh (not centered inside it) and boosted
+// with its own glow so it reads clearly even during fast movement/from
+// the follow camera, instead of blending into the arm.
+const heldSpiral = new THREE.Mesh(
+  new THREE.TubeGeometry(new SpiralCurve(0.32, 0.85, 4.5), 90, 0.07, 8, false),
+  new THREE.MeshStandardMaterial({color:0x2196f3, emissive:0x2979ff, emissiveIntensity:1.1, metalness:0.5, roughness:0.2})
+);
+heldSpiral.position.set(ARM_W*0.85, -ARM_LEN*0.95, ARM_W*0.85);
+heldSpiral.rotation.z = 0.3;
+heldSpiral.visible = false;
+heldSpiral.castShadow = true;
+armR.add(heldSpiral);
+// Small point light riding along with it so the glow is unmistakable even
+// in bright daylight areas of the level.
+const heldSpiralLight = new THREE.PointLight(0x2979ff, 0, 3.5, 2);
+heldSpiralLight.position.copy(heldSpiral.position);
+armR.add(heldSpiralLight);
+
+// Apply a skin instantly by recoloring the shared body materials and
+// swapping in that skin's accessory set.
+function applySkin(idx){
+  const s = SKINS[idx];
+  currentSkin = idx;
+  matHead.color.setHex(s.head);
+  matTorso.color.setHex(s.torso);
+  matArm.color.setHex(s.arms);
+  matLeg.color.setHex(s.legs);
+  if(s.emissive){
+    matTorso.emissive.setHex(s.emissive); matTorso.emissiveIntensity = 0.30;
+    matHead.emissive.setHex(s.emissive);  matHead.emissiveIntensity  = 0.12;
+  }else{
+    matTorso.emissive.setHex(0x000000);
+    matHead.emissive.setHex(0x000000);
+  }
+  // show only this skin's accessories
+  for(const key in skinAccessories){
+    for(const obj of skinAccessories[key]) obj.visible = (Number(key) === idx);
+  }
+  // full-coverage helmets (robot / astro) hide the drawn-on face
+  facePlane.visible = !(idx === 2 || idx === 4);
+  refreshSkinCards();
+}
+
+// Build the skin selection cards
+const skinCardsEl = document.getElementById('skinCards');
+const hex = n => '#'+n.toString(16).padStart(6,'0');
+
+// A small flat-style character icon per skin (used inside the shop card's
+// circle) built from that skin's real colors plus its signature accessory,
+// so the shop matches the in-game model at a glance.
+function skinIconSVG(s, i){
+  const headColor  = hex(s.head), torsoColor = hex(s.torso),
+        armColor   = hex(s.arms), legColor   = hex(s.legs);
+  let accessory = '';
+  if(i===1){ // Red Ninja — headband + mask
+    accessory = `<rect x="12" y="7" width="26" height="5" fill="#b71c1c" stroke="#000" stroke-width="1.5"/>`+
+                `<rect x="14" y="17" width="22" height="8" fill="#1a1a1a" stroke="#000" stroke-width="1.5"/>`;
+  } else if(i===2){ // Cyber Robot — visor + chest core
+    accessory = `<rect x="14" y="12" width="22" height="4" fill="#00e5ff"/>`+
+                `<circle cx="25" cy="38" r="4" fill="#00e5ff"/>`;
+  } else if(i===3){ // Golden Knight — spiked crown + gem
+    accessory = `<polygon points="12,4 16,-5 20,4 25,-7 30,4 34,-5 38,4" fill="#ffc107" stroke="#000" stroke-width="1.5"/>`+
+                `<circle cx="25" cy="-2" r="2.1" fill="#d32f2f" stroke="#000" stroke-width="1"/>`;
+  } else if(i===4){ // Galaxy Astro — glass dome + antenna
+    accessory = `<circle cx="25" cy="15" r="15" fill="#80deea" fill-opacity="0.35" stroke="#000" stroke-width="1.5"/>`+
+                `<line x1="33" y1="3" x2="38" y2="-6" stroke="#333" stroke-width="2"/>`+
+                `<circle cx="38" cy="-7" r="2" fill="#ff5252" stroke="#000" stroke-width="1"/>`;
+  }
+  const face = (i===2||i===4) ? '' :
+    `<circle cx="20" cy="14" r="1.6" fill="#000"/><circle cx="30" cy="14" r="1.6" fill="#000"/>`+
+    `<path d="M19 19 Q25 23 31 19" stroke="#000" stroke-width="1.5" fill="none" stroke-linecap="round"/>`;
+  return `<svg viewBox="-6 -12 62 84" class="w-9 h-9">`+
+    `<rect x="10" y="26" width="30" height="24" rx="3" fill="${torsoColor}" stroke="#000" stroke-width="2"/>`+
+    `<rect x="0" y="27" width="10" height="20" rx="3" fill="${armColor}" stroke="#000" stroke-width="2"/>`+
+    `<rect x="40" y="27" width="10" height="20" rx="3" fill="${armColor}" stroke="#000" stroke-width="2"/>`+
+    `<rect x="12" y="50" width="11" height="18" rx="2" fill="${legColor}" stroke="#000" stroke-width="2"/>`+
+    `<rect x="27" y="50" width="11" height="18" rx="2" fill="${legColor}" stroke="#000" stroke-width="2"/>`+
+    `<rect x="12" y="4" width="26" height="22" rx="6" fill="${headColor}" stroke="#000" stroke-width="2"/>`+
+    face + accessory +
+  `</svg>`;
+}
+
+SKINS.forEach((s,i)=>{
+  const card = document.createElement('button');
+  card.className = 'skin-card roblox-shadow relative rounded-[14px] border-[3px] border-black p-3 flex flex-col items-center bg-white cursor-pointer hover:-translate-y-0.5 transition-transform';
+  card.innerHTML =
+    `<div class="w-12 h-12 rounded-full border-[3px] border-black flex items-center justify-center overflow-hidden" style="background:#f2f2f2">${skinIconSVG(s,i)}</div>`+
+    `<div class="mt-2 text-[12px] font-black" style="color:#111">${s.name}</div>`+
+    `<div class="mt-1 flex gap-1">`+
+      `<span class="w-4 h-4 rounded-sm border border-black" style="background:${hex(s.torso)}"></span>`+
+      `<span class="w-4 h-4 rounded-sm border border-black" style="background:${hex(s.legs)}"></span>`+
+    `</div>`;
+  card.onclick = ()=> applySkin(i);
+  skinCardsEl.appendChild(card);
+});
+function refreshSkinCards(){
+  document.querySelectorAll('#skinCards .skin-card').forEach((c,i)=>{
+    c.style.outline = (i===currentSkin) ? '4px solid #00e676' : '4px solid transparent';
+    c.style.opacity = '1';
+  });
+}
+refreshSkinCards();
+document.getElementById('skinsBtn').onclick = ()=>{
+  document.getElementById('skinsScreen').classList.remove('hidden');
+  document.getElementById('skinsScreen').classList.add('flex');
+  refreshSkinCards();
+};
+document.getElementById('skinsClose').onclick = ()=>{
+  document.getElementById('skinsScreen').classList.add('hidden');
+  document.getElementById('skinsScreen').classList.remove('flex');
+};
+document.getElementById('skinsCloseX').onclick = ()=>{
+  document.getElementById('skinsScreen').classList.add('hidden');
+  document.getElementById('skinsScreen').classList.remove('flex');
+};
+applySkin(0);
+
+// ── PLAYER STATE ──
+const player = {
+  pos: new THREE.Vector3(0, 2.5, 0),
+  vel: new THREE.Vector3(0, 0, 0),
+  radius: PLAYER_RADIUS,
+  height: BODY_H,
+  onGround: false,
+  coyote: 0,
+  jumpBuffer: 0,
+  jumpHeld: false,
+  jumpHoldTime: 0,
+  rising: false,
+  justJumped: 0,       // substep counter — prevents re-landing on takeoff
+  lastPlatformIdx: -1,
+  falls: 0,
+  won: false,
+  startTime: performance.now(),
+  springTimer: 0,   // seconds left of the spiral power-up (halves gravity: 2x jump height + 2x fall time)
+};
+let moveInput = new THREE.Vector2(0,0);
+const keys = {};
+
+function setKey(e, down){
+  const k = e.code.toLowerCase();
+  const wasDown = !!keys[k];
+  keys[k] = down;
+  if(k === 'space'){
+    // Ignore browser key-repeat: one physical press creates one jump request.
+    if(down && !wasDown){
+      player.jumpBuffer = 0.20;
+      player.jumpHoldTime = 0;
+    }
+    player.jumpHeld = down;
+    if(!down){
+      player.jumpHoldTime = 0;
+    }
+    e.preventDefault();
+  }
+  if(down && k === 'keyr') triggerRespawn();
+}
+// PC mouse-look/pointer-lock and pinch-to-zoom stay removed per earlier
+// user request. The mobile movement joystick and jump button below are
+// real again — touch-only, wired with Pointer Events so each control
+// tracks its own finger independently (you can hold the joystick with one
+// thumb and mash jump with the other).
+let joyPointerId = null;
+let joyVec = new THREE.Vector2(0,0);
+const JOY_RADIUS = 42;   // px the knob can travel from center (matches CSS visual size)
+const JOY_DEADZONE = 6;  // px — ignores tiny thumb jitter near center
+
+function updateMoveInput(){
+  moveInput.copy(joyVec);
+}
+
+const CAM_MIN_DIST = 5;
+const CAM_MAX_DIST = 22;
+
+// ── TOUCH DRAG-TO-LOOK + PINCH-TO-ZOOM ──
+// One finger on the canvas orbits the camera (yaw + pitch). A second finger
+// switches to pinch-zoom: fingers spreading apart pulls the camera in,
+// pinching together pushes it out. Both are touch-only (pointerType check),
+// so this doesn't reintroduce the PC mouse-look that was removed earlier.
+const activePointers = new Map(); // pointerId -> {x,y}, touch pointers currently down on the canvas
+let pinchStartDist = null, pinchStartCamDist = null;
+// Pitch clamp: MAX pushed close to straight-up (π/2 ≈ 1.5708) so dragging up
+// gets you an almost fully top-down bird's-eye view of the character, while
+// staying just short of exactly 90° to avoid the camera "up" vector going
+// parallel with the look direction (which can make it snap/roll oddly).
+const CAM_PITCH_MIN = -1.3, CAM_PITCH_MAX = 1.48;
+
+function pinchDist(){
+  const pts = [...activePointers.values()];
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+}
+
+canvas.addEventListener('pointerdown', e=>{
+  if(e.pointerType !== 'touch') return;
+  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  canvas.setPointerCapture(e.pointerId);
+  if(activePointers.size === 2){
+    pinchStartDist = pinchDist();
+    pinchStartCamDist = camDesiredDist;
+  }
+});
+
+canvas.addEventListener('pointermove', e=>{
+  if(!activePointers.has(e.pointerId)) return;
+  const prev = activePointers.get(e.pointerId);
+  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+
+  if(activePointers.size === 2){
+    const dist = pinchDist();
+    if(pinchStartDist){
+      // Fingers spreading apart (dist grows past the start distance) zooms
+      // IN — camera distance shrinks — and pinching together zooms OUT, so
+      // the new distance scales inversely with how much the pinch grew.
+      const ratio = pinchStartDist / dist;
+      camDesiredDist = THREE.MathUtils.clamp(pinchStartCamDist * ratio, CAM_MIN_DIST, CAM_MAX_DIST);
+    }
+    return;
+  }
+
+  if(activePointers.size === 1){
+    const dx = e.clientX - prev.x;
+    const dy = e.clientY - prev.y;
+    camYaw  -= dx * LOOK_SENSITIVITY;
+    camPitch = THREE.MathUtils.clamp(camPitch - dy*LOOK_SENSITIVITY, CAM_PITCH_MIN, CAM_PITCH_MAX);
+  }
+});
+
+function endCamPointer(e){
+  if(!activePointers.has(e.pointerId)) return;
+  activePointers.delete(e.pointerId);
+  if(activePointers.size < 2){ pinchStartDist = null; pinchStartCamDist = null; }
+}
+canvas.addEventListener('pointerup', endCamPointer);
+canvas.addEventListener('pointercancel', endCamPointer);
+
+let pointerLocked = false;
+
+function isCanvasPointerLocked(){ return false; }
+
+const jumpBtn = document.getElementById('jumpBtn');
+const joyBase = document.getElementById('joyBase');
+const joyKnob = document.getElementById('joyKnob');
+
+// ── MOVEMENT JOYSTICK ──
+// Moves the knob toward the finger (clamped to JOY_RADIUS) and derives a
+// -1..1 joyVec from that offset: dragging up feels like "forward" and
+// dragging sideways maps to camera-right, matching updateMoveInput() above
+// which feeds this straight into the camera-relative movement in physicsStep.
+function resetJoystick(){
+  joyVec.set(0,0);
+  joyKnob.style.transform = 'translate(0px,0px)';
+}
+function handleJoyMove(clientX, clientY){
+  const rect = joyBase.getBoundingClientRect();
+  const cx = rect.left + rect.width/2;
+  const cy = rect.top + rect.height/2;
+  let dx = clientX - cx, dy = clientY - cy;
+  const dist = Math.hypot(dx, dy);
+  const clamped = Math.min(dist, JOY_RADIUS);
+  if(dist > 0.0001){ dx = dx/dist*clamped; dy = dy/dist*clamped; }
+  joyKnob.style.transform = `translate(${dx}px,${dy}px)`;
+  const norm = clamped < JOY_DEADZONE ? 0 : clamped/JOY_RADIUS;
+  const inv = dist > 0.0001 ? 1/dist : 0;
+  joyVec.set(dx*inv*norm, -dy*inv*norm); // screen-up (negative dy) → forward (+y)
+}
+joyBase.addEventListener('pointerdown', e=>{
+  if(joyPointerId !== null) return; // already tracking a finger
+  joyPointerId = e.pointerId;
+  joyBase.setPointerCapture(joyPointerId);
+  handleJoyMove(e.clientX, e.clientY);
+  e.preventDefault();
+});
+joyBase.addEventListener('pointermove', e=>{
+  if(e.pointerId !== joyPointerId) return;
+  handleJoyMove(e.clientX, e.clientY);
+  e.preventDefault();
+});
+function endJoyTouch(e){
+  if(e.pointerId !== joyPointerId) return;
+  joyPointerId = null;
+  resetJoystick();
+}
+joyBase.addEventListener('pointerup', endJoyTouch);
+joyBase.addEventListener('pointercancel', endJoyTouch);
+
+// ── JUMP BUTTON ──
+// Mirrors what setKey() does for the spacebar: arms the jump buffer once
+// per press (no repeat-fire while held) and tracks jumpHeld for variable
+// jump height, exactly like the keyboard path in physicsStep.
+let jumpPointerId = null;
+jumpBtn.addEventListener('pointerdown', e=>{
+  if(jumpPointerId !== null) return;
+  jumpPointerId = e.pointerId;
+  jumpBtn.setPointerCapture(jumpPointerId);
+  player.jumpBuffer = 0.20;
+  player.jumpHoldTime = 0;
+  player.jumpHeld = true;
+  e.preventDefault();
+});
+function endJumpTouch(e){
+  if(e.pointerId !== jumpPointerId) return;
+  jumpPointerId = null;
+  player.jumpHeld = false;
+  player.jumpHoldTime = 0;
+}
+jumpBtn.addEventListener('pointerup', endJumpTouch);
+jumpBtn.addEventListener('pointercancel', endJumpTouch);
+
+// Fly button removed per user request.
+function updateFlyButtonVisibility(){}
+
+
+// ── UI ──
+const tierTxt = document.getElementById('tierTxt');
+const progTxt = document.getElementById('progTxt');
+const checkTxt = document.getElementById('checkTxt');
+const springStatusEl  = document.getElementById('springStatus');
+const springStatusTxt = document.getElementById('springStatusTxt');
+const equipToast      = document.getElementById('equipToast');
+let equipToastTimer = 0;
+const speedTxt = document.getElementById('speedometer');
+const fallOverlay = document.getElementById('fallOverlay');
+const pointerLockHint = document.getElementById('pointerLockHint');
+
+// Mobile pinch-zoom hint: shown for a few seconds after load, then fades
+// out permanently so it never gets in the way of actual play.
+const pinchZoomHint = document.getElementById('pinchZoomHint');
+if(pinchZoomHint){
+  setTimeout(()=>{
+    pinchZoomHint.style.opacity = '0';
+    setTimeout(()=>{ pinchZoomHint.style.display = 'none'; }, 700);
+  }, 4000);
+}
+
+// True once the player is outside every pickup's reach; must go
+// true→false→true again before a pickup can be granted again, so
+// standing on a spot doesn't instantly re-trigger the pickup.
+let springGateArmed = true;
+
+// Grants the spiral power-up the instant it's touched.
+function grantSpringPickup(){
+  for(const other of springPickups){ other.collected = true; other.mesh.visible = false; }
+  player.springTimer = SPRING_DURATION;
+  heldSpiral.visible = true;
+  heldSpiralLight.intensity = 1.4;
+  playSpringPickupSFX();
+  equipToast.classList.remove('hidden'); equipToast.classList.add('flex');
+  equipToast.style.opacity = '1';
+  clearTimeout(equipToastTimer);
+  equipToastTimer = setTimeout(()=>{
+    equipToast.style.opacity = '0';
+    setTimeout(()=>{ equipToast.classList.add('hidden'); equipToast.classList.remove('flex'); }, 260);
+  }, 1400);
+  console.log('[spiral pickup] claimed — springTimer set to', SPRING_DURATION);
+}
+
+function finishRespawn(){
+  player.pos.copy(lastCheckpoint.pos);
+  player.vel.set(0,0,0);
+  player.onGround = false; player.coyote = 0; player.rising = false;
+  player.jumpHeld = false; player.jumpHoldTime = 0;
+  player.justJumped = 0;
+  player.springTimer = 0;
+  visualY = player.pos.y;
+  isDead = false;
+}
+
+let visualY = player.pos.y;
+let isDead = false;
+function triggerRespawn(force=false){
+  if(isDead && !force) return;
+  isDead=true;
+  player.falls++;
+  playFallSFX();
+  fallOverlay.style.opacity='1';
+
+  setTimeout(()=>{
+    fallOverlay.style.opacity='0';
+    finishRespawn();
+  }, 380);
+}
+document.getElementById('respawnBtn').addEventListener('click', ()=>triggerRespawn(true));
+
+let animTime=0, nearestIdx=0;
+const clock = new THREE.Clock();
+
+const MAX_PUSH = 0.18; // clamp per-substep push so overlapping platforms above/below
+                        // (common on a stacked spiral) nudge the player smoothly
+                        // instead of snapping them instantly to the far edge.
+
+// ── SPATIAL GRID — broad-phase collision culling ──
+// Without this, horizontalCollide/resolveLand each scanned every one of the
+// ~320 platforms, every one of the up to 8 fixed-timestep substeps per
+// frame — thousands of pointless AABB/circle tests a second for platforms
+// nowhere near the player. Bucketing platforms into a uniform grid by world
+// position lets both functions test only the handful of platforms actually
+// close to the player, which is what most of that per-frame cost was going
+// toward (this is the main win for keeping FPS high on low-end devices).
+const GRID_CELL = 16; // studs per cell — comfortably bigger than any single
+                       // platform footprint or player-vs-platform reach
+const collisionGrid = new Map(); // "cx,cz" -> platform index array
+function gridKey(cx,cz){ return cx+','+cz; }
+function gridInsert(idx, minX,maxX,minZ,maxZ){
+  const cx0 = Math.floor(minX/GRID_CELL), cx1 = Math.floor(maxX/GRID_CELL);
+  const cz0 = Math.floor(minZ/GRID_CELL), cz1 = Math.floor(maxZ/GRID_CELL);
+  for(let cx=cx0; cx<=cx1; cx++){
+    for(let cz=cz0; cz<=cz1; cz++){
+      const key = gridKey(cx,cz);
+      let arr = collisionGrid.get(key);
+      if(!arr){ arr = []; collisionGrid.set(key, arr); }
+      arr.push(idx);
+    }
+  }
+}
+// Reusable scratch buffers for grid queries — avoids allocating a new
+// array/Set on every single physics substep. Dedup uses a "stamp" per
+// platform index instead of a Set, which is cheap to check and never
+// needs clearing between queries.
+let gridQueryStamp = 0;
+let gridSeenStamp  = new Int32Array(0);
+const gridCandidates = [];
+// Platforms that actually move — collected once so the per-substep update
+// only touches the small subset that oscillate instead of scanning all ~320
+// platforms every physics step just to skip most of them.
+const movingPlatformIdxs = [];
+function buildCollisionGrid(){
+  collisionGrid.clear();
+  gridSeenStamp = new Int32Array(platforms.length);
+  gridQueryStamp = 0;
+  movingPlatformIdxs.length = 0;
+  for(let i=0;i<platforms.length;i++){
+    const col = platforms[i];
+    // Conservative bounding radius (covers rotation for boxes/beams) plus
+    // player size, push clamp, and — for moving platforms — the full
+    // distance they can oscillate, so a platform is always registered in
+    // every cell it could ever occupy and never needs re-bucketing at runtime.
+    const reach = col.type==='cylinder' ? (col.radius||1) : Math.hypot(col.halfW||1, col.halfD||1);
+    const moveRange = col.moving ? col.moving.amplitude : 0;
+    const pad = reach + player.radius + MAX_PUSH + moveRange + 1;
+    gridInsert(i, col.pos.x-pad, col.pos.x+pad, col.pos.z-pad, col.pos.z+pad);
+    if(col.moving) movingPlatformIdxs.push(i);
+    const obj = platformObjs[i];
+    platformMeshCache[i] = obj ? obj.group.children.filter(c=>c.isMesh) : [];
+  }
+}
+function queryCollisionGrid(x, z, cellRadius){
+  cellRadius = cellRadius || 1;
+  gridQueryStamp++;
+  gridCandidates.length = 0;
+  const cx = Math.floor(x/GRID_CELL), cz = Math.floor(z/GRID_CELL);
+  for(let dx=-cellRadius; dx<=cellRadius; dx++){
+    for(let dz=-cellRadius; dz<=cellRadius; dz++){
+      const arr = collisionGrid.get(gridKey(cx+dx, cz+dz));
+      if(!arr) continue;
+      for(let k=0;k<arr.length;k++){
+        const idx = arr[k];
+        if(gridSeenStamp[idx] === gridQueryStamp) continue;
+        gridSeenStamp[idx] = gridQueryStamp;
+        gridCandidates.push(idx);
+      }
+    }
+  }
+  return gridCandidates;
+}
+// Per-platform mesh list cached once (used for the camera-occlusion
+// raycast) instead of walking every platform's group + filtering its
+// children fresh every single frame.
+const platformMeshCache = [];
+buildCollisionGrid();
+
+function horizontalCollide(p){
+  const candidates = queryCollisionGrid(p.x, p.z);
+  for(let n=0;n<candidates.length;n++){
+    const i = candidates[n];
+    const col = platforms[i];
+    if(col.active === false) continue;
+    if(col.isRamp) continue;
+    if(p.y + 0.08 >= col.top && p.y <= col.top + STEP_UP) continue;
+    if(p.y + player.height < col.bottom || p.y > col.top + 0.6) continue;
+    if(col.type==='cylinder'){
+      const dx = p.x - col.pos.x, dz = p.z - col.pos.z;
+      const dist = Math.hypot(dx,dz);
+      const minDist = col.radius + player.radius + 0.05;
+      if(dist < minDist && dist>0.001){
+        const push = Math.min(minDist - dist, MAX_PUSH);
+        p.x += (dx/dist)*push; p.z += (dz/dist)*push;
+      }
+    } else {
+      const cosR = Math.cos(-col.rotY), sinR = Math.sin(-col.rotY);
+      const dx = p.x - col.pos.x, dz = p.z - col.pos.z;
+      const lx = dx*cosR - dz*sinR, lz = dx*sinR + dz*cosR;
+      const hw = col.halfW + player.radius, hd = col.halfD + player.radius;
+      if(Math.abs(lx) < hw && Math.abs(lz) < hd){
+        const ox = Math.min(hw - Math.abs(lx), MAX_PUSH), oz = Math.min(hd - Math.abs(lz), MAX_PUSH);
+        if(ox < oz){ const s = lx>=0?1:-1; p.x += s*ox*cosR; p.z += -s*ox*sinR; }
+        else       { const s = lz>=0?1:-1; p.x += s*oz*sinR; p.z +=  s*oz*cosR; }
+      }
+    }
+  }
+}
+
+let crouchTimer = 0, landSquash = 0, stretchTimer = 0, camKick = 0;
+
+/**
+ * Slides every "moving" platform along its stored axis using a smooth
+ * sine oscillation, keeps its mesh in sync, and carries the player along
+ * with it (like a Roblox conveyor/elevator) if they're currently standing
+ * on that exact platform.
+ */
+let physTime = 0;
+function updateMovingPlatforms(dt){
+  physTime += dt;
+  for(let i=STAGE2_START;i<platforms.length;i++){
+    const col = platforms[i];
+    if(!col.disappearing) continue;
+    // Disappearing behavior disabled: these platforms now stay solid and
+    // visible at all times instead of cycling on/off.
+    col.active = true;
+    const po = platformObjs[i];
+    if(po) po.group.visible = true;
+  }
+  for(let n=0;n<movingPlatformIdxs.length;n++){
+    const i = movingPlatformIdxs[n];
+    const col = platforms[i];
+    const mv = col.moving;
+    const offset = Math.sin(physTime*mv.speed + mv.phase) * mv.amplitude;
+    const newX = mv.base.x + mv.dir.x*offset;
+    const newZ = mv.base.z + mv.dir.y*offset;
+    const deltaX = newX - col.pos.x;
+    const deltaZ = newZ - col.pos.z;
+    col.pos.x = newX; col.pos.z = newZ;
+    const po = platformObjs[i];
+    if(po){ po.group.position.x = newX; po.group.position.z = newZ; }
+    if(player.onGround && player.lastPlatformIdx === i){
+      player.pos.x += deltaX;
+      player.pos.z += deltaZ;
+    }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   PHYSICS STEP  (120 Hz fixed timestep)
+   ════════════════════════════════════════════════════════════ */
+// Scratch vectors reused every substep (up to 8x/frame) instead of
+// allocating fresh THREE.Vector3 objects each time — cuts garbage
+// collection pressure, which is what causes periodic frame hitches
+// on low-end devices even when average CPU cost looks fine.
+const _camForward = new THREE.Vector3();
+const _camRight    = new THREE.Vector3();
+const _moveDirScr  = new THREE.Vector3();
+const _npScratch   = new THREE.Vector3();
+
+function physicsStep(dt){
+  updateMovingPlatforms(dt);
+
+  // timers
+  if(player.coyote>0)     player.coyote -= dt;
+  if(player.jumpBuffer>0) player.jumpBuffer -= dt;
+  if(crouchTimer>0)       crouchTimer -= dt;
+  if(landSquash>0)        landSquash -= dt*4.5;
+  if(stretchTimer>0)      stretchTimer -= dt*5.5;
+  if(player.justJumped>0) player.justJumped -= dt;
+  if(player.springTimer>0){
+    player.springTimer = Math.max(0, player.springTimer - dt);
+    springBuffWasActive = true;
+  } else if(springBuffWasActive){
+    // Buff just ran out — bring every spiral back so it can be collected again.
+    springBuffWasActive = false;
+    for(const sp of springPickups){ sp.collected = false; sp.mesh.visible = true; }
+  }
+
+  if(player.jumpHeld) player.jumpHoldTime += dt;
+  else                player.jumpHoldTime = 0;
+
+  // ── THREE-PHASE GRAVITY (smooth arc) ──
+  let g;
+  if(player.vel.y > APEX_WINDOW){
+    g = G_UP;
+  } else if(player.vel.y < -APEX_WINDOW){
+    g = G_DOWN;
+  } else {
+    g = G_APEX;
+  }
+  // Spiral power-up: slightly less powerful than before. Using 0.55x
+  // gravity gives about 10% less jump height than the old 0.50x setting,
+  // while keeping the same special low-gravity feel.
+  if(player.springTimer>0) g *= 0.55;
+  player.vel.y -= g*dt;
+
+  if(player.vel.y < -MAX_FALL) player.vel.y = -MAX_FALL;
+  player.rising = player.vel.y > 0;
+
+  // ── HORIZONTAL MOVEMENT ──
+  updateMoveInput();
+  const camForward = _camForward.set(-Math.sin(camYaw),0,-Math.cos(camYaw));
+  const camRight   = _camRight.set( Math.cos(camYaw),0,-Math.sin(camYaw));
+  const moveDir = _moveDirScr.set(0,0,0)
+    .addScaledVector(camForward, moveInput.y)
+    .addScaledVector(camRight,   moveInput.x);
+  const hasInput = moveDir.lengthSq() > 0.001;
+  if(hasInput) moveDir.normalize();
+
+  const targetX = hasInput ? moveDir.x * MOVE_SPEED : 0;
+  const targetZ = hasInput ? moveDir.z * MOVE_SPEED : 0;
+
+  const a = (player.onGround ? GROUND_ACCEL : AIR_ACCEL) * dt;
+
+  // Accelerate toward target (same formula ground & air — NO drag in air)
+  if(hasInput){
+    player.vel.x += THREE.MathUtils.clamp(targetX - player.vel.x, -a, a);
+    player.vel.z += THREE.MathUtils.clamp(targetZ - player.vel.z, -a, a);
+  } else if(player.onGround){
+    // friction only on ground, no input
+    const f = Math.pow(GROUND_FRICT, dt);
+    player.vel.x *= f; player.vel.z *= f;
+    if(Math.abs(player.vel.x)<0.05) player.vel.x = 0;
+    if(Math.abs(player.vel.z)<0.05) player.vel.z = 0;
+  } else {
+    // Airborne + joystick released: apply a light drag so letting go mid-jump
+    // gradually stops the drift instead of carrying full speed all the way
+    // to landing. Much gentler than ground friction — still keeps a bit of
+    // momentum feel for skilled jumps, just doesn't run away forever.
+    const f = Math.pow(AIR_FRICT, dt);
+    player.vel.x *= f; player.vel.z *= f;
+  }
+
+  // ── JUMP ──
+  if(player.jumpBuffer>0 && (player.onGround || player.coyote>0)){
+    player.vel.y     = JUMP_V0;
+    player.onGround  = false;
+    player.coyote    = 0;
+    player.jumpBuffer = 0;
+    player.rising    = true;
+    player.justJumped = 0.05;          // ≈ 6 substeps of immunity
+    crouchTimer      = 0.09;
+    stretchTimer     = 1;
+    camKick          = 1.6;
+    triggerDust(new THREE.Vector3(player.pos.x, player.pos.y+0.05, player.pos.z), 10, 0.55, 1.6, 0.26);
+    playJumpSFX();
+  }
+
+  const prevY      = player.pos.y;
+  const wasGrounded = player.onGround;
+  const jumpedNow   = player.justJumped > 0;
+
+  // integrate
+  const np = _npScratch.copy(player.pos).addScaledVector(player.vel, dt);
+  horizontalCollide(np);
+
+  // ── LANDING (skip if just jumped — prevents snapping back to surface) ──
+  let hit = null;
+  if(!jumpedNow){
+    hit = resolveLand(np.x, np.z, prevY, np.y, wasGrounded, player.vel.y);
+  }
+
+  const vy = player.vel.y;
+  if(hit && vy <= 0){
+    np.y = hit.top;
+    const po = platformObjs[hit.idx];
+    const isBounce = !!(po && po.collider.bounce);
+
+    if(!wasGrounded && vy < -3 && !isBounce){
+      landSquash = Math.min(1, (-vy)/26);
+      camKick = Math.min(7, (-vy)/26*7);
+      const dustCount = Math.round(THREE.MathUtils.clamp((-vy)/40, 0.25, 1) * 22);
+      triggerDust(new THREE.Vector3(np.x, hit.top+0.05, np.z), dustCount, 0.5+landSquash*0.9, 1.6+landSquash*2.2, 0.24+landSquash*0.18);
+    }
+
+    if(isBounce){
+      // Bounce pad: launch the player skyward instead of coming to rest.
+      player.vel.y    = BOUNCE_VELOCITY;
+      player.onGround = false;
+      player.rising   = true;
+      player.coyote   = 0;
+      player.justJumped = 0.05;
+      camKick = 6;
+      triggerDust(new THREE.Vector3(np.x, hit.top+0.05, np.z), 18, 0.7, 2.1, 0.3);
+    } else {
+      player.vel.y    = 0;
+      player.onGround = true;
+      player.rising   = false;
+      player.coyote   = 0.18;
+      player.justJumped = 0;
+    }
+
+    if(hit.idx !== player.lastPlatformIdx){
+      player.lastPlatformIdx = hit.idx;
+      nearestIdx = hit.idx;
+    }
+    if(po && po.isCheckpoint){
+      if(lastCheckpoint.index !== hit.idx){
+        playCheckpointSFX();
+        lastCheckpoint.pos.set(po.pos.x, po.collider.top + 0.05, po.pos.z);
+        lastCheckpoint.index = hit.idx;
+        saveCheckpointProgress();
+      } else {
+        lastCheckpoint.pos.set(po.pos.x, po.collider.top + 0.05, po.pos.z);
+      }
+      const ring = po.group.userData.ring;
+      if(ring){ ring.scale.setScalar(1.4); setTimeout(()=>ring.scale.setScalar(1),300); }
+    }
+    if(hit.idx === STAGE1_END && !level2Active && !stage1Transition){
+      stage1Time=(performance.now()-player.startTime)/1000;
+      stage1Transition=true;
+      player.vel.set(0,0,0);
+      player.onGround=true;
+      showStage1Complete();
+    }
+    if(hit.idx === totalPlatforms-1 && !player.won){
+      player.won = true;
+      triggerWinParticles(new THREE.Vector3(player.pos.x, hit.top + 2, player.pos.z));
+      playVictorySFX();
+      showWin();
+    }
+  } else {
+    if(wasGrounded){ player.onGround = false; player.coyote = 0.14; }
+  }
+
+  // Follow ramp surfaces while grounded
+  if(player.onGround){
+    const r = resolveLand(np.x, np.z, np.y + 0.05, np.y, true, -1);
+    if(r && platforms[r.idx] && platforms[r.idx].isRamp) np.y = r.top;
+  }
+
+  player.pos.copy(np);
+
+  if(player.pos.y < lastCheckpoint.pos.y - 40 || player.pos.y < -60) triggerRespawn();
+  if(np.length()>1400) triggerRespawn();
+}
+
+let accumulator = 0;
+function physicsUpdate(dt){
+  if(isDead || stage1Transition) return;
+  accumulator += dt;
+  let guard = 0;
+  while(accumulator >= FIXED_DT && guard < 8){
+    physicsStep(FIXED_DT);
+    accumulator -= FIXED_DT;
+    guard++;
+  }
+  if(guard >= 8) accumulator = 0;
+}
+
+function showStage1Complete(){
+  const w=document.getElementById('stage1Complete');
+  if(!w) return;
+  document.getElementById('stage1Time').textContent=stage1Time.toFixed(1)+'s';
+  document.getElementById('stage1Falls').textContent=player.falls;
+  w.classList.remove('hidden'); w.classList.add('flex');
+  clearTimeout(stage1AutoTimer);
+  stage1AutoTimer=setTimeout(startLevel2,4500);
+}
+function startLevel2(){
+  if(!stage1Transition) return;
+  clearTimeout(stage1AutoTimer);
+  const w=document.getElementById('stage1Complete');
+  if(w){w.classList.add('hidden');w.classList.remove('flex');}
+  const startObj=platformObjs[STAGE2_START];
+  if(startObj){
+    player.pos.set(startObj.pos.x,startObj.collider.top+0.05,startObj.pos.z);
+    lastCheckpoint.pos.copy(player.pos);
+    lastCheckpoint.index=STAGE2_START;
+    saveCheckpointProgress();
+  }
+  player.vel.set(0,0,0);
+  player.onGround=false;
+  player.coyote=0;
+  player.jumpBuffer=0;
+  player.won=false;
+  player.falls=0;
+  player.startTime=performance.now();
+  stage1Transition=false;
+  level2Active=true;
+  enterLevel2();
+}
+const nextLevelBtn=document.getElementById('nextLevelBtn');
+if(nextLevelBtn) nextLevelBtn.addEventListener('click',startLevel2);
+
+function enterLevel2(){
+  level2Active = true;
+  level2Night = true;
+  scene.background.setHex(0x05091a);
+  moon.visible = true;
+  nightStars.visible = true;
+  scene.fog.color.setHex(0x07112b);
+  scene.fog.near = 45;
+  scene.fog.far = 430;
+  ambient.intensity = 0.42;
+  hemi.intensity = 0.25;
+  sun.intensity = 0.38;
+  sun.color.setHex(0x9aa8ff);
+  if(!level2IntroShown && level2Toast){
+    level2IntroShown = true;
+    level2Toast.classList.remove('hidden');
+    level2Toast.classList.add('flex');
+    level2Toast.style.opacity='1';
+    setTimeout(()=>{
+      level2Toast.style.opacity='0';
+      setTimeout(()=>{ level2Toast.classList.add('hidden'); level2Toast.classList.remove('flex'); },500);
+    },3200);
+  }
+  playCheckpointSFX();
+}
+
+function showWin(){
+  const w = document.getElementById('winScreen');
+  w.classList.remove('hidden'); w.classList.add('flex');
+  document.getElementById('winTime').textContent  = ((performance.now()-player.startTime)/1000).toFixed(1)+'s';
+  document.getElementById('winFalls').textContent = player.falls;
+  // Run finished — clear the saved checkpoint so a fresh playthrough
+  // starts from platform 0 again instead of resuming at the finish line.
+  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+}
+
+/* ════════════════════════════════════════════════════════════
+   ANIMATION  — smooth blending
+   ════════════════════════════════════════════════════════════ */
+const pose = {
+  hipL:0, hipR:0, kneeL:0, kneeR:0, legLz:0, legRz:0,
+  armLx:0, armRx:0, armLz:0, armRz:0,
+  torsoX:0, bob:0, sqY:1, sqXZ:1
+};
+const lerpPose = (c,t,r,dt)=> c + (t-c)*Math.min(1, r*dt);
+// Reused every frame instead of allocating a fresh pose-target object each
+// call — one less object for the GC to collect at 60fps.
+const poseKeys  = ['hipL','hipR','kneeL','kneeR','legLz','legRz','armLx','armRx','armLz','armRz','torsoX','bob','sqY','sqXZ'];
+const tScratch  = {
+  hipL:0, hipR:0, kneeL:0, kneeR:0, legLz:0, legRz:0,
+  armLx:0, armRx:0, armLz:0, armRz:0,
+  torsoX:0, bob:0, sqY:1, sqXZ:1
+};
+
+function animateAvatar(dt){
+  animTime += dt;
+  const speed = Math.hypot(player.vel.x, player.vel.z);
+  const vy = player.vel.y;
+
+  const t = tScratch;
+  t.hipL=0; t.hipR=0; t.kneeL=0; t.kneeR=0; t.legLz=0.02; t.legRz=-0.02;
+  t.armLx=0; t.armRx=0; t.armLz=0.05; t.armRz=-0.05;
+  t.torsoX=0; t.bob=0; t.sqY=1; t.sqXZ=1;
+  let blend = 12;
+
+  if(player.onGround){
+    if(speed > 1.0){
+      // run cycle
+      const f  = 6.0 + (speed/MOVE_SPEED)*5.0;
+      const s  = Math.sin(animTime*f);
+      const s2 = Math.sin(animTime*f + Math.PI);
+      const amp = 0.34 + (speed/MOVE_SPEED)*0.46;
+      t.hipL  = s*amp;          t.hipR  = s2*amp;
+      t.kneeL = Math.max(0, s)*0.75 + 0.06;
+      t.kneeR = Math.max(0, s2)*0.75 + 0.06;
+      t.armLx = -s*amp*0.8;      t.armRx = -s2*amp*0.8;
+      t.torsoX = 0.05 + (speed/MOVE_SPEED)*0.09;
+      t.bob   = Math.abs(s)*0.09;
+      blend = 18;
+    } else {
+      const b = Math.sin(animTime*1.7);
+      t.armLx = b*0.06; t.armRx = -b*0.06;
+      t.armLz = 0.07;   t.armRz = -0.07;
+      t.kneeL = 0.03;   t.kneeR = 0.03;
+      t.bob   = Math.max(0, b*0.03);
+      t.sqY   = 1 + b*0.012;
+      blend = 6;
+    }
+  } else {
+    if(vy > APEX_WINDOW){
+      const p = THREE.MathUtils.clamp(vy/JUMP_V0, 0, 1);
+      t.hipL  = -0.62*p - 0.18;  t.hipR  = -0.34*p - 0.10;
+      t.kneeL =  1.15*p + 0.25;  t.kneeR =  0.70*p + 0.18;
+      t.legLz = 0.07;            t.legRz = -0.07;
+      t.armLx = -1.55*p - 0.35;  t.armRx = -1.55*p - 0.35;
+      t.armLz = -0.20;           t.armRz = 0.20;
+      t.torsoX = -0.17*p;
+      t.sqY   = 1 + p*0.09;      t.sqXZ = 1 - p*0.055;
+      blend = 15;
+    } else if(vy < -APEX_WINDOW){
+      const p = THREE.MathUtils.clamp(-vy/30, 0, 1);
+      t.hipL  = -0.30 - p*0.22;  t.hipR  =  0.20 + p*0.26;
+      t.kneeL =  0.34 - p*0.24;  t.kneeR =  0.16 + p*0.16;
+      t.legLz = 0.10;            t.legRz = -0.10;
+      t.armLx = -1.95 - p*0.45;  t.armRx = -1.95 - p*0.45;
+      t.armLz = -0.44 - p*0.22;  t.armRz = 0.44 + p*0.22;
+      t.torsoX = 0.10 + p*0.13;
+      t.sqY   = 1 + p*0.055;     t.sqXZ = 1 - p*0.03;
+      blend = 11;
+    } else {
+      t.hipL  = -0.40; t.hipR  = -0.05;
+      t.kneeL =  0.72; t.kneeR =  0.40;
+      t.legLz = 0.08;  t.legRz = -0.08;
+      t.armLx = -1.30; t.armRx = -1.30;
+      t.armLz = -0.32; t.armRz = 0.32;
+      t.torsoX = -0.03;
+      blend = 13;
+    }
+  }
+
+  if(crouchTimer > 0){
+    const c = crouchTimer/0.09;
+    t.kneeL += 0.80*c; t.kneeR += 0.80*c;
+    t.hipL  -= 0.30*c; t.hipR  -= 0.30*c;
+    t.sqY   *= 1 - 0.13*c;
+    t.sqXZ  *= 1 + 0.09*c;
+    blend = 28;
+  }
+  if(stretchTimer > 0){
+    // Cartoon-style takeoff pop: body stretches long and legs kick straight
+    // the instant the player leaves the ground, selling the launch impulse.
+    const s = Math.max(0, stretchTimer);
+    t.kneeL = Math.max(0, t.kneeL - 0.55*s); t.kneeR = Math.max(0, t.kneeR - 0.55*s);
+    t.hipL  -= 0.20*s; t.hipR -= 0.20*s;
+    t.armLx -= 0.45*s; t.armRx -= 0.45*s;
+    t.sqY   *= 1 + 0.24*s;
+    t.sqXZ  *= 1 - 0.16*s;
+    blend = 30;
+  }
+  if(landSquash > 0){
+    const l = Math.max(0, landSquash);
+    t.kneeL += 1.00*l; t.kneeR += 1.00*l;
+    t.hipL  -= 0.42*l; t.hipR -= 0.42*l;
+    t.armLx += 0.50*l; t.armRx += 0.50*l;
+    t.torsoX += 0.15*l;
+    t.sqY   *= 1 - 0.22*l;
+    t.sqXZ  *= 1 + 0.15*l;
+    blend = 24;
+  }
+
+  for(let ki=0; ki<poseKeys.length; ki++){
+    const k = poseKeys[ki];
+    pose[k] = lerpPose(pose[k], t[k], blend, dt);
+  }
+
+  legL.hip.rotation.x  = pose.hipL;   legR.hip.rotation.x  = pose.hipR;
+  legL.hip.rotation.z  = pose.legLz;  legR.hip.rotation.z  = pose.legRz;
+  legL.knee.rotation.x = pose.kneeL;  legR.knee.rotation.x = pose.kneeR;
+
+  armL.rotation.x = pose.armLx; armR.rotation.x = pose.armRx;
+  armL.rotation.z = pose.armLz; armR.rotation.z = pose.armRz;
+
+  torso.rotation.x = pose.torsoX;
+  head.rotation.x  = pose.torsoX*0.35;
+
+  upperRoot.position.y = pose.bob;
+  bodyRoot.scale.set(pose.sqXZ, pose.sqY, pose.sqXZ);
+
+  if(speed > 0.5){
+    const targetYaw = Math.atan2(player.vel.x, player.vel.z);
+    let diff = targetYaw - avatar.rotation.y;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    avatar.rotation.y += diff * Math.min(1, dt*10);
+  }
+
+  if(player.onGround) visualY = lerpPose(visualY, player.pos.y, 22, dt);
+  else                visualY = player.pos.y;
+
+  avatar.position.set(player.pos.x, visualY, player.pos.z);
+}
+
+// ── CAMERA ──
+// Reused every frame so the camera-occlusion raycast doesn't allocate a
+// fresh array (or walk the *entire* level's meshes) each time.
+const camOcclusionMeshes = [];
+const camRayDir = new THREE.Vector3();
+const camDesiredVec = new THREE.Vector3();
+const camOffsetVec = new THREE.Vector3();
+const camRaycaster = new THREE.Raycaster();
+
+function updateCamera(dt){
+  camDist = THREE.MathUtils.lerp(camDist, camDesiredDist, dt*6);
+  camTarget.set(player.pos.x, visualY + 2.8 * AVATAR_SCALE, player.pos.z);
+  const cosP = Math.cos(camPitch), sinP = Math.sin(camPitch);
+  const offset = camOffsetVec.set(Math.sin(camYaw)*cosP, sinP, Math.cos(camYaw)*cosP).multiplyScalar(camDist);
+  let desired = camDesiredVec.copy(camTarget).add(offset);
+
+  const rayDir = camRayDir.copy(desired).sub(camTarget).normalize();
+  camRaycaster.set(camTarget, rayDir);
+  camRaycaster.far = camDist+0.5;
+  // Only test platforms actually near the player — camDist tops out at
+  // CAM_MAX_DIST (22), so a 2-cell grid radius (~80 studs across) is more
+  // than enough, versus raycasting against every platform in the level.
+  const nearby = queryCollisionGrid(player.pos.x, player.pos.z, 2);
+  camOcclusionMeshes.length = 0;
+  for(let n=0;n<nearby.length;n++){
+    const arr = platformMeshCache[nearby[n]];
+    if(arr) for(let m=0;m<arr.length;m++) camOcclusionMeshes.push(arr[m]);
+  }
+  const hits = camRaycaster.intersectObjects(camOcclusionMeshes, true);
+  if(hits.length>0 && hits[0].distance < camDist){
+    camDist = Math.max(3, hits[0].distance - 0.35);
+    desired = camDesiredVec.copy(camTarget).addScaledVector(rayDir, camDist);
+  }
+  camera.position.lerp(desired, Math.min(1, dt*8));
+  camera.lookAt(camTarget);
+
+  // Subtle FOV punch on jump takeoff / landing impact — a quick, cheap way
+  // to sell the impulse without touching the actual camera path.
+  camKick = THREE.MathUtils.lerp(camKick, 0, Math.min(1, dt*9));
+  const targetFov = 62 + camKick;
+  if(Math.abs(camera.fov - targetFov) > 0.01){
+    camera.fov = targetFov;
+    camera.updateProjectionMatrix();
+  }
+}
+
+// jumpBtn's label/color never actually change during play — set once here
+// instead of re-writing the same DOM properties 60x/sec inside updateUI.
+jumpBtn.textContent = 'JUMP';
+jumpBtn.style.backgroundColor = '#ffffff';
+
+// Cache the last-written value for each frequently-updated UI field so
+// updateUI() only touches the DOM (textContent, classList) when the
+// value actually changed, instead of writing it fresh every frame —
+// same on-screen result, far fewer style/layout invalidations.
+let _uiLastTier = null, _uiLastProg = null, _uiLastCP = null, _uiLastSpeed = null, _uiLastSpringOn = null, _uiLastSpringSec = null;
+function updateUI(){
+  const tierVal = Math.min(numTiers, Math.floor(nearestIdx / perTier) + 1);
+  if(tierTxt && tierVal !== _uiLastTier){ tierTxt.textContent = tierVal; _uiLastTier = tierVal; }
+
+  const progVal = Math.round((nearestIdx/(totalPlatforms-1))*100)+'% — '+nearestIdx+'/'+(totalPlatforms-1);
+  if(progTxt && progVal !== _uiLastProg){ progTxt.textContent = progVal; _uiLastProg = progVal; }
+
+  const cpVal = 'CP '+lastCheckpoint.index;
+  if(checkTxt && cpVal !== _uiLastCP){ checkTxt.textContent = cpVal; _uiLastCP = cpVal; }
+
+  const speedVal = Math.hypot(player.vel.x, player.vel.z).toFixed(1)+' STUDS/S';
+  if(speedTxt && speedVal !== _uiLastSpeed){ speedTxt.textContent = speedVal; _uiLastSpeed = speedVal; }
+
+  if(springStatusEl){
+    const on = player.springTimer > 0;
+    if(on !== _uiLastSpringOn){
+      springStatusEl.classList.toggle('hidden', !on);
+      springStatusEl.classList.toggle('flex', on);
+      _uiLastSpringOn = on;
+    }
+    if(on){
+      const sec = Math.ceil(player.springTimer);
+      if(sec !== _uiLastSpringSec && springStatusTxt){
+        springStatusTxt.textContent = 'DOUBLE JUMP '+sec+'s';
+        _uiLastSpringSec = sec;
+      }
+    } else {
+      _uiLastSpringSec = null;
+    }
+  }
+}
+
+// ── DUST PUFF PARTICLES (jump takeoff + landing impact) ──
+const DUST_COUNT = 96;
+const dustParticles = [];
+const dustGeo = new THREE.BufferGeometry();
+const dustPositions = new Float32Array(DUST_COUNT * 3);
+const dustColors = new Float32Array(DUST_COUNT * 3);
+const dustSizes = new Float32Array(DUST_COUNT);
+dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+dustGeo.setAttribute('color', new THREE.BufferAttribute(dustColors, 3));
+dustGeo.setAttribute('size', new THREE.BufferAttribute(dustSizes, 1));
+const dustMat = new THREE.PointsMaterial({
+  size: 0.28,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.8,
+  depthWrite: false
+});
+const dustSystem = new THREE.Points(dustGeo, dustMat);
+dustSystem.visible = false;
+scene.add(dustSystem);
+for(let i=0;i<DUST_COUNT;i++){
+  dustParticles.push({ pos:new THREE.Vector3(), vel:new THREE.Vector3(), life:0, maxLife:0, size:0 });
+}
+let dustCursor = 0;
+// Rolling-buffer burst so a takeoff puff and a landing puff moments apart
+// don't wipe each other out.
+function triggerDust(origin, count=14, spread=0.6, upSpeed=1.8, sizeBase=0.28){
+  dustSystem.visible = true;
+  for(let n=0;n<count;n++){
+    const i = dustCursor; dustCursor = (dustCursor+1) % DUST_COUNT;
+    const p = dustParticles[i];
+    const a = Math.random()*Math.PI*2;
+    const r = Math.random()*spread;
+    p.pos.set(origin.x + Math.cos(a)*r, origin.y + Math.random()*0.12, origin.z + Math.sin(a)*r);
+    const outSpeed = 1.3 + Math.random()*2.0;
+    p.vel.set(Math.cos(a)*outSpeed, upSpeed*(0.4+Math.random()*0.8), Math.sin(a)*outSpeed);
+    p.life = 0;
+    p.maxLife = 0.32 + Math.random()*0.28;
+    p.size = sizeBase * (0.7 + Math.random()*0.6);
+  }
+}
+function updateDust(dt){
+  if(!dustSystem.visible) return;
+  let anyAlive = false;
+  for(let i=0;i<DUST_COUNT;i++){
+    const p = dustParticles[i];
+    if(p.life >= p.maxLife){
+      dustPositions[i*3]=0; dustPositions[i*3+1]=-1000; dustPositions[i*3+2]=0;
+      dustSizes[i] = 0;
+      continue;
+    }
+    p.life += dt;
+    anyAlive = true;
+    p.vel.y -= 5*dt;
+    const drag = Math.max(0, 1 - 3.2*dt);
+    p.vel.x *= drag; p.vel.z *= drag;
+    p.pos.addScaledVector(p.vel, dt);
+    const fade = 1 - (p.life / p.maxLife);
+    dustPositions[i*3]   = p.pos.x;
+    dustPositions[i*3+1] = p.pos.y;
+    dustPositions[i*3+2] = p.pos.z;
+    dustColors[i*3] = 1; dustColors[i*3+1] = 1; dustColors[i*3+2] = 1;
+    dustSizes[i] = p.size * fade;
+  }
+  dustGeo.attributes.position.needsUpdate = true;
+  dustGeo.attributes.color.needsUpdate = true;
+  dustGeo.attributes.size.needsUpdate = true;
+  if(!anyAlive) dustSystem.visible = false;
+}
+
+// ── WIN PARTICLE SYSTEM ──
+const WIN_PARTICLE_COUNT = 180;
+const winParticles = [];
+const winParticleGeo = new THREE.BufferGeometry();
+const winPositions = new Float32Array(WIN_PARTICLE_COUNT * 3);
+const winColors = new Float32Array(WIN_PARTICLE_COUNT * 3);
+const winSizes = new Float32Array(WIN_PARTICLE_COUNT);
+winParticleGeo.setAttribute('position', new THREE.BufferAttribute(winPositions, 3));
+winParticleGeo.setAttribute('color', new THREE.BufferAttribute(winColors, 3));
+winParticleGeo.setAttribute('size', new THREE.BufferAttribute(winSizes, 1));
+const winParticleMat = new THREE.PointsMaterial({
+  size: 0.35,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.9,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending
+});
+const winParticleSystem = new THREE.Points(winParticleGeo, winParticleMat);
+winParticleSystem.visible = false;
+scene.add(winParticleSystem);
+
+for(let i=0;i<WIN_PARTICLE_COUNT;i++){
+  winParticles.push({
+    pos: new THREE.Vector3(),
+    vel: new THREE.Vector3(),
+    color: new THREE.Color(),
+    life: 0,
+    maxLife: 0
+  });
+}
+
+function triggerWinParticles(origin){
+  winParticleSystem.visible = true;
+  const colors = [0xffd700, 0xff9800, 0xffeb3b, 0xffffff, 0xff5722];
+  for(let i=0;i<WIN_PARTICLE_COUNT;i++){
+    const p = winParticles[i];
+    p.pos.copy(origin).add(new THREE.Vector3(
+      (Math.random()-0.5)*2,
+      Math.random()*2,
+      (Math.random()-0.5)*2
+    ));
+    const angle = Math.random()*Math.PI*2;
+    const speed = 3 + Math.random()*8;
+    p.vel.set(
+      Math.cos(angle)*speed,
+      2 + Math.random()*6,
+      Math.sin(angle)*speed
+    );
+    p.color.setHex(colors[Math.floor(Math.random()*colors.length)]);
+    p.life = 0;
+    p.maxLife = 2 + Math.random()*2;
+  }
+}
+
+function updateWinParticles(dt){
+  if(!winParticleSystem.visible) return;
+  let anyAlive = false;
+  for(let i=0;i<WIN_PARTICLE_COUNT;i++){
+    const p = winParticles[i];
+    if(p.life >= p.maxLife){
+      winPositions[i*3] = 0;
+      winPositions[i*3+1] = -1000;
+      winPositions[i*3+2] = 0;
+      winSizes[i] = 0;
+      continue;
+    }
+    p.life += dt;
+    anyAlive = true;
+    p.vel.y -= 12*dt; // gravity
+    p.pos.addScaledVector(p.vel, dt);
+    const fade = 1 - (p.life / p.maxLife);
+    winPositions[i*3]   = p.pos.x;
+    winPositions[i*3+1] = p.pos.y;
+    winPositions[i*3+2] = p.pos.z;
+    winColors[i*3]   = p.color.r * fade;
+    winColors[i*3+1] = p.color.g * fade;
+    winColors[i*3+2] = p.color.b * fade;
+    winSizes[i] = 0.35 * fade;
+  }
+  winParticleGeo.attributes.position.needsUpdate = true;
+  winParticleGeo.attributes.color.needsUpdate = true;
+  winParticleGeo.attributes.size.needsUpdate = true;
+  if(!anyAlive) winParticleSystem.visible = false;
+}
+
+// ── RESILIENT GAME LOOP ──
+// Movement (physicsUpdate) is the ONE thing that must always run and commit,
+// every frame, no matter what else happens. Purely cosmetic stages (avatar
+// pose blending, decorative spin animations, particles) are each wrapped so
+// a failure in any one of them can never stop the physics step from applying
+// joystick input to player.pos, and can never stop the frame from rendering.
+// Without this, a single thrown error later in the frame would silently kill
+// the render call (or the whole rAF chain) — the joystick knob keeps moving
+// because it's driven directly by its own pointer events outside this loop,
+// while the character behind it would appear completely frozen. Isolating
+// each stage prevents that failure mode entirely.
+function safeStage(fn){
+  try{ fn(); }catch(err){ console.error('[loop stage error]', err); }
+}
+
+function loop(){
+  updateFlyButtonVisibility();
+    requestAnimationFrame(loop);
+  const dt = Math.min(0.05, clock.getDelta());
+
+  // 1) CRITICAL: apply joystick/keyboard input to player velocity & position.
+  //    Always executes first so movement never stalls.
+  safeStage(()=> physicsUpdate(dt));
+
+  // 2) Everything else is cosmetic — sync the visual avatar/camera to the
+  //    now-updated player.pos, and animate decorations. None of these can
+  //    block player movement even if they throw.
+  safeStage(()=> animateAvatar(dt));
+  safeStage(()=> updateCamera(dt));
+  safeStage(()=> updateUI());
+
+  safeStage(()=>{
+    // Animate checkpoint rings
+    platformObjs.forEach(o=>{ if(o.group.userData.ring) o.group.userData.ring.rotation.z += dt*1.2; });
+
+    // Animate + collect floating spiral power-ups
+    let touchingSpringNow = false;
+    for(const sp of springPickups){
+      if(sp.collected) continue;
+      sp.mesh.rotation.y += dt*1.6;
+      sp.mesh.position.y = sp.baseY + Math.sin(animTime*1.5 + sp.bob)*0.6;
+      sp.mesh.getWorldPosition(_springWorldPos);
+      // Separate horizontal reach from vertical reach: player.pos is the
+      // feet, but the spiral floats near head height, so a single 3D
+      // radius made you jump almost exactly into it. A generous cylinder
+      // (wide sideways, tall vertically) means brushing past it while
+      // walking/running under it is enough to touch it.
+      const dx = _springWorldPos.x - player.pos.x;
+      const dz = _springWorldPos.z - player.pos.z;
+      const horizDist = Math.hypot(dx, dz);
+      const vertDist = Math.abs(_springWorldPos.y - player.pos.y);
+      if(horizDist < SPRING_PICKUP_R_H && vertDist < SPRING_PICKUP_R_V){
+        touchingSpringNow = true;
+        if(springGateArmed){
+          // Disarmed immediately so walking off and back onto it doesn't
+          // regrant it while it's still marked collected below.
+          springGateArmed = false;
+          grantSpringPickup();
+        }
+        break;
+      }
+    }
+    // Only once the player has fully left every uncollected spiral's reach
+    // can the prompt arm itself to fire again — that's what makes "walk
+    // away, come back" reopen it instead of it retriggering in place.
+    if(!touchingSpringNow) springGateArmed = true;
+    heldSpiral.visible = player.springTimer > 0;
+    heldSpiralLight.intensity = player.springTimer > 0 ? 1.4 : 0;
+
+    // Animate finish platform
+    const finalPlat = platformObjs[totalPlatforms-1];
+    if(finalPlat){
+      const ud = finalPlat.group.userData;
+      if(ud.trophy) ud.trophy.rotation.y += dt*0.8;
+      if(ud.star){
+        ud.star.rotation.y += dt*2.5;
+        ud.star.rotation.z += dt*1.2;
+      }
+      if(ud.pillarRing) ud.pillarRing.rotation.y += dt*0.6;
+      if(ud.halo){
+        ud.halo.rotation.z += dt*1.5;
+        const pulse = 0.7 + Math.sin(animTime*3)*0.15;
+        ud.halo.scale.set(pulse, pulse, pulse);
+      }
+      if(ud.finishLight){
+        ud.finishLight.intensity = 4 + Math.sin(animTime*2)*1.5;
+      }
+    }
+  });
+
+  safeStage(()=> updateWinParticles(dt));
+  safeStage(()=> updateDust(dt));
+
+  // 3) Render is also isolated: a bad cosmetic stage above must never stop
+  //    the frame from being drawn to the screen.
+  safeStage(()=> renderer.render(scene,camera));
+
+  if(window.__finishLoading){
+    window.__finishLoading(); window.__finishLoading = null;
+  }
+}
+loop();
+
+function syncRendererSize(){
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', syncRendererSize);
+// Some mobile browsers fire 'resize' before innerWidth/innerHeight have
+// actually updated to the new orientation's values, so also listen for
+// 'orientationchange' directly and re-sync a beat later once the layout
+// has settled.
+window.addEventListener('orientationchange', ()=>{ setTimeout(syncRendererSize, 300); });
+// Best-effort landscape lock where the API is supported (mainly Android
+// Chrome in fullscreen); silently ignored everywhere else, since the CSS
+// rotate-prompt above is the real fallback that always works.
+document.addEventListener('click', function tryLockOnce(){
+  document.removeEventListener('click', tryLockOnce);
+  if(screen.orientation && screen.orientation.lock){
+    screen.orientation.lock('landscape').catch(()=>{});
+  }
+}, {once:true});
+
+// Resume at the last saved checkpoint (if any) instead of always starting
+// at platform 0. Falls back to the default spawn if nothing was saved, the
+// saved index is out of range, or that platform somehow isn't a checkpoint.
+(function initSpawn(){
+  const savedIdx = loadCheckpointProgress();
+  const po = (savedIdx !== null) ? platformObjs[savedIdx] : null;
+  if(po && po.isCheckpoint){
+    const spawnPos = new THREE.Vector3(po.pos.x, po.collider.top + 0.05, po.pos.z);
+    player.pos.copy(spawnPos);
+    visualY = spawnPos.y;
+    lastCheckpoint.pos.copy(spawnPos);
+    lastCheckpoint.index = savedIdx;
+  } else {
+    player.pos.set(0, 2.5, 0);
+    visualY = 2.5;
+    lastCheckpoint.pos.set(0, 2.55, 0);
+  }
+})();
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+window.focus();
+</script>
+</body>
+</html>
